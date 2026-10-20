@@ -143,6 +143,17 @@ export function siteInfo(structure: Structure, site: SiteType): SiteInfo {
 
 //////////////// objects in the block
 
+export type PositionGroup = 'corner' | 'edge' | 'face' | 'interior';
+
+export const POSITION_GROUPS: PositionGroup[] = ['corner', 'edge', 'face', 'interior'];
+
+// where a position sits in its unit cell, by how many coordinates lie on a cell boundary:
+// 3 → corner, 2 → edge, 1 → face, 0 → inside (in repeated cells, every cell counts)
+export function positionGroup(pos: Vec3): PositionGroup {
+  const onBoundary = pos.filter((v) => Math.abs(v - Math.round(v)) < EPS).length;
+  return (['interior', 'face', 'edge', 'corner'] as const)[onBoundary];
+}
+
 export function atomObjects(structure: Structure, repeat: Vec3): CrystalObject[] {
   return imagesInBlock(orbit([0, 0, 0], structure.centering), repeat).map((pos) => ({
     key: objectKey('atom', pos),

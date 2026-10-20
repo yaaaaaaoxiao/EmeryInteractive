@@ -137,3 +137,67 @@ describe('links (URL)', () => {
     expect(s.plane).toEqual(defaultState().plane);
   });
 });
+
+describe('hiding atoms', () => {
+  it('the hide tool hides and shows atoms, and ignores sites', () => {
+    const s = store();
+    s.setHideTool(true);
+    s.clickObject(atom(1, 0.5, 0.5), false);
+    expect(s.state.hidden).toEqual([atom(1, 0.5, 0.5)]);
+    s.clickObject('oct:0.5000,0.5000,0.5000', false);
+    expect(s.state.hidden).toEqual([atom(1, 0.5, 0.5)]);
+    s.clickObject(atom(1, 0.5, 0.5), false);
+    expect(s.state.hidden).toEqual([]);
+    expect(s.state.selection).toEqual([]);
+  });
+
+  it('the hide tool and the neighbors tool are never on together', () => {
+    const s = store();
+    s.setNeighborsOn(true);
+    s.setHideTool(true);
+    expect(s.state.neighbors.on).toBe(false);
+    s.setNeighborsOn(true);
+    expect(s.state.hideTool).toBe(false);
+    s.setHideTool(true);
+    s.setNeighborsSolo(true);
+    expect(s.state.hideTool).toBe(false);
+  });
+
+  it('hiding a selected atom deselects it and updates the direction', () => {
+    const s = store();
+    s.setSelection([atom(0, 0, 0), atom(1, 0, 0), atom(0, 1, 0)]);
+    s.setHidden([atom(0, 1, 0)]);
+    expect(s.state.selection).toEqual([atom(0, 0, 0), atom(1, 0, 0)]);
+    expect(s.state.direction?.uvw).toEqual([1, 0, 0]);
+  });
+
+  it('hides atoms by position', () => {
+    const s = store();
+    s.setGroupHidden('corner', true);
+    expect(s.state.hidden).toHaveLength(8);
+    s.setGroupHidden('face', true);
+    expect(s.state.hidden).toHaveLength(14);
+    s.setGroupHidden('corner', false);
+    expect(s.state.hidden).toHaveLength(6);
+
+    const bcc = store({ structure: 'bcc' });
+    bcc.setGroupHidden('interior', true);
+    expect(bcc.state.hidden).toEqual([atom(0.5, 0.5, 0.5)]);
+  });
+
+  it('switching structure clears hidden atoms; shrinking the block drops the ones outside it', () => {
+    const s = store({ repeat: [2, 1, 1] });
+    s.setHidden([atom(0, 0, 0), atom(2, 0, 0)]);
+    s.setRepeat([1, 1, 1]);
+    expect(s.state.hidden).toEqual([atom(0, 0, 0)]);
+    s.setStructure('bcc');
+    expect(s.state.hidden).toEqual([]);
+  });
+
+  it('hidden atoms are kept in links, and positions that are not atoms are ignored', () => {
+    const s: State = { ...defaultState(), hidden: [atom(0, 0, 0), atom(1, 0.5, 0.5)] };
+    expect(stateToURL(s)).toBe('?s=fcc&hide=0,0,0;1,0.5,0.5');
+    expect(stateFromURL(stateToURL(s)).hidden).toEqual(s.hidden);
+    expect(stateFromURL('?s=fcc&hide=0.5,0.5,0.5;9,9,9;0,0,0').hidden).toEqual([atom(0, 0, 0)]);
+  });
+});

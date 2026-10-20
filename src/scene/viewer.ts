@@ -27,6 +27,9 @@ export class Viewer {
   private lastPick: { x: number; y: number; keys: string[]; index: number } | null = null;
   // in the neighbours tool, interstitial sites are picked before the atoms in front of them
   sitesFirst = false;
+  // clicking the same spot again steps to the next object behind; off for the hide tool,
+  // where a second click on a hidden atom's outline must bring that atom back
+  cycleOnRepeat = true;
 
   constructor(
     private container: HTMLElement,
@@ -149,7 +152,10 @@ export class Viewer {
     // clicking the same spot again steps to the next object behind
     const last = this.lastPick;
     const again =
-      last && Math.hypot(e.clientX - last.x, e.clientY - last.y) < REPEAT_CLICK_PX && last.keys.join() === keys.join();
+      this.cycleOnRepeat &&
+      last &&
+      Math.hypot(e.clientX - last.x, e.clientY - last.y) < REPEAT_CLICK_PX &&
+      last.keys.join() === keys.join();
     const index = again && keys.length ? (last.index + 1) % keys.length : 0;
     this.lastPick = { x: e.clientX, y: e.clientY, keys, index };
     return keys[index] ?? null;

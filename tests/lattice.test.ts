@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { atomObjects, fraction, nearestAtoms, orbit, siteInfo, siteObjects, toIntegerIndices } from '../src/crystal/lattice';
+import {
+  atomObjects,
+  fraction,
+  nearestAtoms,
+  orbit,
+  positionGroup,
+  siteInfo,
+  siteObjects,
+  toIntegerIndices,
+} from '../src/crystal/lattice';
 import { STRUCTURES } from '../src/crystal/structures';
 
 const info = (s: keyof typeof STRUCTURES) =>
@@ -71,5 +80,16 @@ describe('formatting', () => {
     expect(fraction(1)).toBe('1');
     expect(toIntegerIndices([0.5, 0.5, 0])).toEqual([1, 1, 0]);
     expect(toIntegerIndices([-0.25, 0.5, 0.25])).toEqual([-1, 2, 1]);
+  });
+});
+
+describe('position groups', () => {
+  it('classifies corners, edges, faces and inside, in every repeated cell', () => {
+    expect(positionGroup([0, 0, 0])).toBe('corner');
+    expect(positionGroup([2, 1, 0])).toBe('corner');
+    expect(positionGroup([0.5, 0, 0])).toBe('edge');
+    expect(positionGroup([0.5, 0.5, 1])).toBe('face');
+    expect(positionGroup([1.5, 0.5, 1])).toBe('face');
+    expect(positionGroup([0.5, 0.5, 0.5])).toBe('interior');
   });
 });

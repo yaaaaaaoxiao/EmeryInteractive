@@ -112,3 +112,37 @@ describe('slice', () => {
     expect(summary(s.state)).toEqual(before);
   });
 });
+
+describe('hidden atoms', () => {
+  const hidden = ['atom:1.0000,0.5000,0.5000'];
+
+  it('are drawn as outlines that only the hide tool can click', () => {
+    const state: State = { ...defaultState(), showSites: { oct: true }, hidden };
+    const keys = picked(state);
+    expect(keys.has(hidden[0])).toBe(false);
+    expect(keys.has('oct:0.5000,0.5000,0.5000')).toBe(true);
+
+    const withTool = picked({ ...state, hideTool: true });
+    expect(withTool.has(hidden[0])).toBe(true);
+    // sites in front of atoms don't get in the way of hiding
+    expect([...withTool].every((k) => k.startsWith('atom:'))).toBe(true);
+  });
+
+  it('leave no solid sphere and no cross-section', () => {
+    const solid = (state: State) =>
+      summary(state).filter((m) => m.includes(' 1.000 0.500 0.500') && !m.includes(' 0.080 ')).length;
+    expect(solid(defaultState())).toBeGreaterThan(0);
+    // only the outline (wire grid + faint fill) is left where the atom was
+    const outlineOnly = summary({ ...defaultState(), hidden }).filter((m) => m.includes(' 1.000 0.500 0.500'));
+    expect(outlineOnly.every((m) => m.startsWith('SphereGeometry'))).toBe(true);
+    expect(outlineOnly).toHaveLength(2);
+
+    const section: State = {
+      ...defaultState(),
+      slice: { on: true, mode: 'section', flip: false },
+      plane: { hkl: [1, 0, 0], offset: 1, show: false },
+    };
+    expect(picked(section).has(hidden[0])).toBe(true);
+    expect(picked({ ...section, hidden }).has(hidden[0])).toBe(false);
+  });
+});

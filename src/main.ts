@@ -22,6 +22,7 @@ const infoKey = (s: State) => JSON.stringify([s.structure, s.neighbors, s.select
 
 function render(state: State, previous: State | null): void {
   viewer.sitesFirst = state.neighbors.on;
+  viewer.cycleOnRepeat = !state.hideTool;
   viewer.show(
     buildScene(state, { onDeselect: (key) => store.setSelection(store.state.selection.filter((k) => k !== key)) }),
     state.repeat,

@@ -61,6 +61,25 @@ export class Viewer {
       if (moved < 5) onPick(this.pick(e), e.shiftKey);
     });
 
+    // Safari on macOS reports trackpad pinches as its own gesture events instead of wheel events,
+    // which OrbitControls ignores, so Safari zoomed the whole page. Zoom the model instead.
+    let lastScale = 1;
+    const onGesture = (e: Event) => {
+      e.preventDefault();
+      const { scale } = e as Event & { scale: number };
+      if (e.type === 'gesturestart') lastScale = 1;
+      if (e.type !== 'gesturechange' || !scale) return;
+      // dollyIn multiplies the camera distance: spreading the fingers (scale up) moves closer
+      this.controls.dollyIn(lastScale / scale);
+      lastScale = scale;
+    };
+    for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+      container.addEventListener(type, onGesture, { passive: false });
+    }
+    // OrbitControls skips wheel events while a rotation is in progress without blocking them,
+    // which let a pinch (ctrl + wheel) zoom the page; never let the page zoom over the model
+    container.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+
     new ResizeObserver(() => this.resize()).observe(container);
     this.resize();
     this.renderer.setAnimationLoop((time) => this.frame(time));

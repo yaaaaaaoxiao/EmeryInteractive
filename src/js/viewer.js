@@ -286,6 +286,7 @@ function resizeContainers(){
 		params.camera.aspect = aspect;
 		params.camera.updateProjectionMatrix();
 
+		params.renderer.setPixelRatio(window.devicePixelRatio); //in case the window moved to a screen with a different DPI
 		params.renderer.setSize( width, height);
 	}
 

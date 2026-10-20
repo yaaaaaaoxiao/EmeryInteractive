@@ -32,6 +32,7 @@ function init(mol, color){
 	params.renderer = new THREE.WebGLRenderer( {
 		antialias:true,
 	} );
+	params.renderer.setPixelRatio(window.devicePixelRatio); //render at full resolution on high-DPI (e.g., Retina) screens
 	params.renderer.setSize(width, height);
 
 	params.container.node().appendChild( params.renderer.domElement );

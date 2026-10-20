@@ -23,6 +23,8 @@ const FADED_OPACITY = 0.07;
 // sites stay visible in the neighbours tool so they can be found and clicked
 const FADED_SITE_OPACITY = 0.45;
 const SITE_OPACITY = 0.95;
+const OUTLINE_OPACITY = 0.55;
+const OUTLINE_FILL_OPACITY = 0.08;
 const EPS = 1e-4;
 
 // what a clickable mesh stands for (several meshes, e.g. a sphere and its cut faces, share one object)
@@ -59,6 +61,19 @@ function sphereGeometry(radius: number): THREE.SphereGeometry {
     g = new THREE.SphereGeometry(radius, 48, 32);
     g.userData.cached = true;
     sphereCache.set(key, g);
+  }
+  return g;
+}
+
+// a coarse wireframe sphere for hidden atoms
+const outlineCache = new Map<string, THREE.SphereGeometry>();
+function outlineGeometry(radius: number): THREE.SphereGeometry {
+  const key = radius.toFixed(5);
+  let g = outlineCache.get(key);
+  if (!g) {
+    g = new THREE.SphereGeometry(radius, 16, 10);
+    g.userData.cached = true;
+    outlineCache.set(key, g);
   }
   return g;
 }
@@ -223,6 +238,7 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
   const selected = new Set(state.selection);
   // neighbours tool in solo: only the target and its surrounding atoms are drawn
   const solo = state.neighbors.on && state.neighbors.solo;
+  const hidden = new Set(state.hidden);
 
   //////// atoms and sites
   for (const obj of solo ? [] : objects) {
@@ -236,9 +252,50 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
 
     const tag = (m: THREE.Object3D) => {
       m.userData.pick = pick;
-      pickables.push(m);
+      // with the hide tool only atoms are clickable, so sites in front of them don't get in the way
+      if (!(state.hideTool && !isAtom)) pickables.push(m);
       group.add(m);
     };
+
+    if (isAtom && hidden.has(obj.key)) {
+      // a hidden atom leaves a faint outline (none in the section or the neighbors tool);
+      // with the hide tool, clicking the outline shows the atom again
+      if (!section && !state.neighbors.on) {
+        // a darker wire grid over a very faint fill, so the gap reads as "an atom was here"
+        const wireColor = new THREE.Color(obj.color).multiplyScalar(0.6);
+        const outline = new THREE.Mesh(
+          outlineGeometry(r),
+          new THREE.MeshBasicMaterial({
+            color: wireColor,
+            wireframe: true,
+            transparent: true,
+            opacity: OUTLINE_OPACITY,
+            depthWrite: false,
+            clippingPlanes: cuts,
+          }),
+        );
+        const fill = new THREE.Mesh(
+          sphereGeometry(r),
+          new THREE.MeshBasicMaterial({
+            color: obj.color,
+            transparent: true,
+            opacity: OUTLINE_FILL_OPACITY,
+            depthWrite: false,
+            clippingPlanes: cuts,
+            // when clipped to the cell we look at the inside of the remaining part; double-sided so
+            // that part can still be clicked
+            side: THREE.DoubleSide,
+          }),
+        );
+        for (const m of [outline, fill]) {
+          m.position.copy(v3(obj.pos));
+          m.userData.pick = pick;
+          if (state.hideTool) pickables.push(m);
+          group.add(m);
+        }
+      }
+      continue;
+    }
 
     if (section) {
       // only the cross-section on the slice plane

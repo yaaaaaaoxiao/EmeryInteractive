@@ -1,6 +1,16 @@
 // The single source of truth for what is on screen. Controls change fields here; the scene is rebuilt from it.
 
-import { atomObjects, dist, nearestAtoms, type ObjectKind, sub, toIntegerIndices } from './crystal/lattice';
+import {
+  atomObjects,
+  dist,
+  nearestAtoms,
+  type ObjectKind,
+  objectKey,
+  type PositionGroup,
+  positionGroup,
+  sub,
+  toIntegerIndices,
+} from './crystal/lattice';
 import { type SiteId, STRUCTURES, type StructureId, type Vec3 } from './crystal/structures';
 
 export type Style = 'hard' | 'sparse';
@@ -20,6 +30,9 @@ export interface State {
   slice: { on: boolean; mode: SliceMode; flip: boolean };
   // solo: show only the target and its surrounding atoms
   neighbors: { on: boolean; target: string | null; solo: boolean };
+  // keys of hidden atoms (drawn as outlines), and whether a click hides/shows atoms
+  hidden: string[];
+  hideTool: boolean;
   // keys of selected objects (see objectKey)
   selection: string[];
   marker: Vec3 | null;
@@ -43,6 +56,8 @@ export function defaultState(): State {
     plane: { hkl: [1, 0, 0], offset: 0.5, show: false },
     slice: { on: false, mode: 'section', flip: false },
     neighbors: { on: false, target: null, solo: false },
+    hidden: [],
+    hideTool: false,
     selection: [],
     marker: null,
     direction: null,
@@ -109,21 +124,22 @@ export class Store {
       structure,
       selection: [],
       direction: null,
+      hidden: [],
       neighbors: { ...s.neighbors, target: s.neighbors.on ? typicalAtom(structure) : null },
     }));
   }
 
   setRepeat(repeat: Vec3): void {
-    // drop selected objects that no longer exist in the smaller block
-    this.set((s) => ({
-      repeat,
-      selection: s.selection.filter((k) => parseKey(k).pos.every((v, i) => v <= repeat[i] + 1e-6)),
-    }));
+    // drop selected and hidden objects that no longer exist in the smaller block
+    const inside = (k: string) => parseKey(k).pos.every((v, i) => v <= repeat[i] + 1e-6);
+    this.set((s) => ({ repeat, selection: s.selection.filter(inside), hidden: s.hidden.filter(inside) }));
   }
 
+  // the neighbors tool and the hide tool both use clicks, so only one is on at a time
   setNeighborsOn(on: boolean): void {
     this.set((s) => ({
       neighbors: { ...s.neighbors, on, target: on ? (s.neighbors.target ?? typicalAtom(s.structure)) : s.neighbors.target },
+      hideTool: on ? false : s.hideTool,
     }));
   }
 
@@ -131,12 +147,37 @@ export class Store {
   setNeighborsSolo(solo: boolean): void {
     this.set((s) => ({
       neighbors: { on: s.neighbors.on || solo, solo, target: s.neighbors.target ?? typicalAtom(s.structure) },
+      hideTool: solo ? false : s.hideTool,
     }));
   }
 
-  // click on an object: select it (shift adds/removes), or pick the neighbours target in that mode
+  setHideTool(on: boolean): void {
+    this.set((s) => ({ hideTool: on, neighbors: on ? { ...s.neighbors, on: false } : s.neighbors }));
+  }
+
+  // hidden atoms can't stay selected
+  setHidden(hidden: string[]): void {
+    const s = this.state;
+    const selection = s.selection.filter((k) => !hidden.includes(k));
+    this.set({ ...(selection.length !== s.selection.length ? selectionPatch(s, selection) : {}), hidden });
+  }
+
+  // hide (or show again) every atom at corners, edges, faces or inside the cells
+  setGroupHidden(group: PositionGroup, hide: boolean): void {
+    const s = this.state;
+    const keys = atomsInGroup(s, group);
+    this.setHidden(hide ? [...new Set([...s.hidden, ...keys])] : s.hidden.filter((k) => !keys.includes(k)));
+  }
+
+  // click on an object: select it (shift adds/removes), pick the neighbours target, or hide/show an atom
   clickObject(key: string | null, additive: boolean): void {
     const s = this.state;
+    if (s.hideTool) {
+      if (key && parseKey(key).kind === 'atom') {
+        this.setHidden(s.hidden.includes(key) ? s.hidden.filter((k) => k !== key) : [...s.hidden, key]);
+      }
+      return;
+    }
     if (s.neighbors.on) {
       if (key) this.set({ neighbors: { ...s.neighbors, target: key } });
       return;
@@ -150,32 +191,43 @@ export class Store {
   }
 
   setSelection(selection: string[]): void {
-    const s = this.state;
-    const pos = selection.map((k) => parseKey(k).pos);
-    const patch: Partial<State> = { selection };
-
-    if (pos.length === 2) {
-      // two objects: the direction between them
-      const vector = sub(pos[1], pos[0]);
-      patch.direction = { uvw: toIntegerIndices(vector), from: pos[0], vector, fromSelection: true };
-    } else if (s.direction?.fromSelection) {
-      patch.direction = null;
-    }
-
-    if (pos.length === 3) {
-      // three objects: the plane through them, if they are not on one line
-      const a = sub(pos[1], pos[0]);
-      const b = sub(pos[2], pos[0]);
-      const normal: Vec3 = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-      if (Math.hypot(...normal) > 1e-6) {
-        const hkl = toIntegerIndices(normal);
-        const n = unitNormal(hkl);
-        const offset = n[0] * pos[0][0] + n[1] * pos[0][1] + n[2] * pos[0][2];
-        patch.plane = { hkl, offset, show: true };
-      }
-    }
-    this.set(patch);
+    this.set(selectionPatch(this.state, selection));
   }
+}
+
+// the selection with what follows from it: 2 objects give a direction, 3 a plane
+function selectionPatch(s: State, selection: string[]): Partial<State> {
+  const pos = selection.map((k) => parseKey(k).pos);
+  const patch: Partial<State> = { selection };
+
+  if (pos.length === 2) {
+    // two objects: the direction between them
+    const vector = sub(pos[1], pos[0]);
+    patch.direction = { uvw: toIntegerIndices(vector), from: pos[0], vector, fromSelection: true };
+  } else if (s.direction?.fromSelection) {
+    patch.direction = null;
+  }
+
+  if (pos.length === 3) {
+    // three objects: the plane through them, if they are not on one line
+    const a = sub(pos[1], pos[0]);
+    const b = sub(pos[2], pos[0]);
+    const normal: Vec3 = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    if (Math.hypot(...normal) > 1e-6) {
+      const hkl = toIntegerIndices(normal);
+      const n = unitNormal(hkl);
+      const offset = n[0] * pos[0][0] + n[1] * pos[0][1] + n[2] * pos[0][2];
+      patch.plane = { hkl, offset, show: true };
+    }
+  }
+  return patch;
+}
+
+// keys of the atoms in the block at corners, edges, faces or inside the cells
+export function atomsInGroup(s: State, group: PositionGroup): string[] {
+  return atomObjects(STRUCTURES[s.structure], s.repeat)
+    .filter((a) => positionGroup(a.pos) === group)
+    .map((a) => a.key);
 }
 
 // a representative atom for the neighbours tool: the one closest to the cell centre
@@ -224,6 +276,13 @@ export function stateFromURL(search: string): State {
   const nb = q.get('nb');
   if (nb === '1' || nb === 'solo') s.neighbors = { on: true, target: typicalAtom(s.structure), solo: nb === 'solo' };
   s.labels = bool(q.get('labels'), s.labels);
+  // hidden atoms: x,y,z;x,y,z — only atoms that exist in this block
+  const atoms = new Set(atomObjects(STRUCTURES[s.structure], s.repeat).map((a) => a.key));
+  for (const p of (q.get('hide') ?? '').split(';').filter(Boolean)) {
+    const pos = p.split(',').map(Number);
+    const key = pos.length === 3 ? objectKey('atom', pos as Vec3) : '';
+    if (atoms.has(key) && !s.hidden.includes(key)) s.hidden.push(key);
+  }
   return s;
 }
 
@@ -247,5 +306,16 @@ export function stateToURL(s: State): string {
   if (s.slice.on) q.set('slice', ['1', s.slice.mode, s.slice.flip ? '1' : '0'].join(','));
   if (s.neighbors.on) q.set('nb', s.neighbors.solo ? 'solo' : '1');
   if (!s.labels) q.set('labels', '0');
-  return '?' + q.toString().replace(/%2C/g, ',');
+  if (s.hidden.length)
+    q.set(
+      'hide',
+      s.hidden
+        .map((k) =>
+          parseKey(k)
+            .pos.map((v) => +v.toFixed(4))
+            .join(','),
+        )
+        .join(';'),
+    );
+  return `?${q.toString().replace(/%2C/g, ',').replace(/%3B/g, ';')}`;
 }

@@ -435,3 +435,12 @@ table.sites th {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* hide atoms */
+.segmented.toggles {
+  flex: 1;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

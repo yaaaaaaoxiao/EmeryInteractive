@@ -1,8 +1,9 @@
 // Left panel. Built once per structure; every change goes through the store, and `sync` shows the current state.
 
+import { atomObjects, POSITION_GROUPS, type PositionGroup, positionGroup } from '../crystal/lattice';
 import { STRUCTURES, type Vec3 } from '../crystal/structures';
 import type { Viewer } from '../scene/viewer';
-import { offsetRange, parseKey, type State, type Store, standardOffset } from '../state';
+import { atomsInGroup, offsetRange, parseKey, type State, type Store, standardOffset } from '../state';
 import { checkbox, h, segmented, triple } from './dom';
 
 export class ControlsPanel {
@@ -135,6 +136,50 @@ export class ControlsPanel {
         { class: 'hint' },
         'Click any atom or site to see its nearest atoms, bonds and count. Turn on a site type under Show to pick sites.',
       ),
+    );
+
+    //////// hide atoms
+    const groupNames: Record<PositionGroup, string> = { corner: 'Corners', edge: 'Edges', face: 'Faces', interior: 'Inside' };
+    // only the positions this structure has atoms at (FCC: corners, faces; BCC: corners, inside; SC: corners)
+    const groups = POSITION_GROUPS.filter((g) => atomObjects(structure, [1, 1, 1]).some((a) => positionGroup(a.pos) === g));
+    const groupButtons = groups.map((g) =>
+      this.bind(
+        h(
+          'button',
+          {
+            type: 'button',
+            title: `Hide or show all ${g === 'interior' ? 'inside' : g} atoms`,
+            onclick: () => store.setGroupHidden(g, !allHidden(store.state, g)),
+          },
+          groupNames[g],
+        ),
+        (el, s) => {
+          const on = allHidden(s, g);
+          el.classList.toggle('on', on);
+          el.setAttribute('aria-pressed', String(on));
+        },
+      ),
+    );
+    const showAll = this.bind(h('button', { type: 'button', class: 'small', onclick: () => store.setHidden([]) }), (el, s) => {
+      el.textContent = s.hidden.length ? `Show all hidden (${s.hidden.length})` : 'No hidden atoms';
+      el.disabled = s.hidden.length === 0;
+    });
+    const hide = section(
+      'Hide atoms',
+      true,
+      this.checkbox(
+        'Hide tool',
+        (s) => s.hideTool,
+        (v) => store.setHideTool(v),
+      ),
+      h('p', { class: 'hint' }, 'Click an atom to hide it; click its outline to bring it back.'),
+      h(
+        'div',
+        { class: 'row' },
+        h('span', { class: 'row-label' }, 'Hide'),
+        h('div', { class: 'segmented toggles' }, ...groupButtons),
+      ),
+      showAll,
     );
 
     //////// plane and slice
@@ -288,8 +333,14 @@ export class ControlsPanel {
       ),
     );
 
-    return [show, appearance, neighbors, slice, repeat, indices, camera];
+    return [show, appearance, neighbors, hide, slice, repeat, indices, camera];
   }
+}
+
+// every atom in this group is hidden (and the group isn't empty)
+function allHidden(s: State, group: PositionGroup): boolean {
+  const keys = atomsInGroup(s, group);
+  return keys.length > 0 && keys.every((k) => s.hidden.includes(k));
 }
 
 function section(title: string, open: boolean, ...children: HTMLElement[]): HTMLElement {

@@ -146,3 +146,28 @@ test('help opens and closes with Escape', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
 });
+
+test('hide atoms by position and with the hide tool', async ({ page }) => {
+  // the longest test (each step redraws the scene); give it room when many browsers run at once
+  test.slow();
+  await open(page, '?s=fcc&sites=oct');
+  const corners = page.getByRole('button', { name: 'Corners', exact: true });
+  await corners.click();
+  await expect(corners).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Show all hidden (8)' })).toBeEnabled();
+  await expect(page).toHaveURL(/hide=0,0,0;/);
+
+  // the hide tool turns the neighbors tool off, and clicks hide atoms
+  await page.getByLabel('Neighbors tool').check();
+  await page.getByLabel('Hide tool').check();
+  await expect(page.getByLabel('Neighbors tool')).not.toBeChecked();
+  await clickAt(page, [1, 0.5, 0.5]);
+  await expect(page.getByRole('button', { name: 'Show all hidden (9)' })).toBeVisible();
+  // clicking its outline brings it back
+  await clickAt(page, [1, 0.5, 0.5]);
+  await expect(page.getByRole('button', { name: 'Show all hidden (8)' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Show all hidden (8)' }).click();
+  await expect(page.getByRole('button', { name: 'No hidden atoms' })).toBeDisabled();
+  await expect(corners).toHaveAttribute('aria-pressed', 'false');
+});

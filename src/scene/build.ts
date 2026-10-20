@@ -6,6 +6,7 @@ import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { atomObjects, type CrystalObject, fraction, objectKey, siteObjects } from '../crystal/lattice';
 import { STRUCTURES, type Vec3 } from '../crystal/structures';
 import { neighborsOf, parseKey, type State, unitNormal } from '../state';
+import { makeMaterial } from './look';
 
 export const COLORS = {
   highlight: 0xff6347,
@@ -79,10 +80,8 @@ function outlineGeometry(radius: number): THREE.SphereGeometry {
 }
 
 function material(color: number, opacity: number, clippingPlanes: THREE.Plane[] = [], depthWrite = opacity > 0.5) {
-  return new THREE.MeshStandardMaterial({
+  return makeMaterial({
     color,
-    roughness: 0.45,
-    metalness: 0.05,
     transparent: opacity < 1,
     opacity,
     depthWrite,

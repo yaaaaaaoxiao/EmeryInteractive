@@ -2,9 +2,11 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { Vec3 } from '../crystal/structures';
 import type { Built, PickTarget } from './build';
+import { LOOK } from './look';
 
 const DEFAULT_VIEW = new THREE.Vector3(3.65, 1.95, 1.66).normalize();
 // a site counts as clicked if the pointer is this close to its centre (in CSS pixels), even if it's tiny
@@ -18,7 +20,7 @@ export class Viewer {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
   private controls: OrbitControls;
-  private light = new THREE.DirectionalLight(0xffffff, 2.2);
+  private light = new THREE.DirectionalLight(0xffffff, LOOK.key);
   private content: THREE.Group | null = null;
   private pickables: THREE.Object3D[] = [];
   private overlay = new THREE.Group();
@@ -40,13 +42,22 @@ export class Viewer {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.localClippingEnabled = true;
+    this.renderer.toneMapping = LOOK.toneMapping;
+    this.renderer.toneMappingExposure = LOOK.exposure;
     container.appendChild(this.renderer.domElement);
 
     this.labelRenderer.domElement.className = 'label-layer';
     container.appendChild(this.labelRenderer.domElement);
 
     this.scene.background = new THREE.Color(0xffffff);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a8a, 1.6));
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a8a, LOOK.hemisphere));
+    if (LOOK.environment > 0) {
+      // soft studio reflections, rendered once into an environment map
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      this.scene.environmentIntensity = LOOK.environment;
+      pmrem.dispose();
+    }
     this.camera.add(this.light);
     this.light.position.set(1, 2, 3);
     this.scene.add(this.camera);

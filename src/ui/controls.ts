@@ -76,7 +76,7 @@ export class ControlsPanel {
     //////// neighbours
     const neighbors = section('Neighbors', true,
       this.checkbox('Neighbors tool', (s) => s.neighbors.on, (v) => store.setNeighborsOn(v)),
-      h('p', { class: 'hint' }, 'Click any atom or site to see its nearest atoms, bonds and count.'),
+      h('p', { class: 'hint' }, 'Click any atom or site to see its nearest atoms, bonds and count. Turn on a site type under Show to pick sites.'),
     );
 
     //////// plane and slice

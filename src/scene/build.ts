@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { STRUCTURES, type Vec3 } from '../crystal/structures';
-import { atomObjects, fraction, siteObjects, type CrystalObject, objectKey } from '../crystal/lattice';
+import { atomObjects, fraction, siteObjects, type CrystalObject } from '../crystal/lattice';
 import { neighborsOf, parseKey, unitNormal, type State } from '../state';
 
 export const COLORS = {
@@ -20,11 +20,22 @@ const SPARSE_SCALE = 0.25;
 const SPARSE_MIN_RADIUS = 0.03; // keeps the smallest sites visible in the sparse style
 const GHOST_OPACITY = 0.1;
 const FADED_OPACITY = 0.07;
+// sites stay visible in the neighbours tool so they can be found and clicked
+const FADED_SITE_OPACITY = 0.45;
 const SITE_OPACITY = 0.95;
 const EPS = 1e-4;
 
+// what a clickable mesh stands for (several meshes, e.g. a sphere and its cut faces, share one object)
+export interface PickTarget {
+  key: string;
+  isSite: boolean;
+  center: Vec3;
+  radius: number;
+}
+
 export interface Built {
   group: THREE.Group;
+  // only atoms and sites inside the block; overlays (neighbours, labels, planes) are never clickable
   pickables: THREE.Object3D[];
 }
 
@@ -207,17 +218,19 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
     const isAtom = obj.kind === 'atom';
     const faded = state.neighbors.on;
     const color = selected.has(obj.key) ? COLORS.highlight : obj.color;
-    const opacity = faded ? FADED_OPACITY : isAtom ? state.opacity : SITE_OPACITY;
+    const fadedOpacity = isAtom ? FADED_OPACITY : FADED_SITE_OPACITY;
+    const opacity = faded ? fadedOpacity : isAtom ? state.opacity : SITE_OPACITY;
+    const pick: PickTarget = { key: obj.key, isSite: !isAtom, center: obj.pos, radius: r };
 
     const tag = (m: THREE.Object3D) => {
-      m.userData.key = obj.key;
+      m.userData.pick = pick;
       pickables.push(m);
       group.add(m);
     };
 
     if (section) {
       // only the cross-section on the slice plane
-      const disk = capDisk(obj.pos, r, slice, color, faded ? FADED_OPACITY : 1, box, true);
+      const disk = capDisk(obj.pos, r, slice, color, faded ? fadedOpacity : 1, box, true);
       if (disk) tag(disk);
       continue;
     }
@@ -272,8 +285,6 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
     const targetColor = n.site ? n.site.color : structure.color;
     const center = new THREE.Mesh(sphereGeometry(displayRadius(state, targetRadius)), material(targetColor, 1));
     center.position.copy(v3(n.pos));
-    center.userData.key = state.neighbors.target;
-    pickables.push(center);
     group.add(center);
 
     const neighborOpacity = state.style === 'hard' ? 0.35 : 1;
@@ -281,8 +292,6 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
     for (const p of n.positions) {
       const m = new THREE.Mesh(sphereGeometry(neighborRadius), material(structure.color, neighborOpacity));
       m.position.copy(v3(p));
-      m.userData.key = objectKey('atom', p);
-      pickables.push(m);
       group.add(m);
       group.add(bond(n.pos, p, 0.015, COLORS.bond));
     }

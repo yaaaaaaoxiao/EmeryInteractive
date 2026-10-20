@@ -23,6 +23,8 @@ export class Viewer {
   private pickables: THREE.Object3D[] = [];
   private overlay = new THREE.Group();
   private animation: ((time: number) => boolean) | null = null;
+  // draw only when something changed (camera, scene, size, animation); idle costs nothing
+  private needsRender = true;
   private blockSize: Vec3 = [1, 1, 1];
   private lastPick: { x: number; y: number; keys: string[]; index: number } | null = null;
   // in the neighbours tool, interstitial sites are picked before the atoms in front of them
@@ -88,6 +90,7 @@ export class Viewer {
 
     new ResizeObserver(() => this.resize()).observe(container);
     this.resize();
+    this.controls.addEventListener('change', () => this.requestRender());
     this.renderer.setAnimationLoop((time) => this.frame(time));
   }
 
@@ -107,6 +110,7 @@ export class Viewer {
       this.lastPick = null;
     }
     this.scene.add(built.group);
+    this.requestRender();
     // so clicks right after a rebuild hit the new objects where they are
     this.scene.updateMatrixWorld();
     const sizeChanged = blockSize.some((v, i) => v !== this.blockSize[i]);
@@ -264,11 +268,22 @@ export class Viewer {
     this.labelRenderer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.requestRender();
+  }
+
+  requestRender(): void {
+    this.needsRender = true;
   }
 
   private frame(time: number): void {
-    if (this.animation && !this.animation(time)) this.animation = null;
+    if (this.animation) {
+      if (!this.animation(time)) this.animation = null;
+      this.needsRender = true;
+    }
+    // with damping the camera keeps gliding after a drag; update() fires 'change' while it moves
     this.controls.update();
+    if (!this.needsRender) return;
+    this.needsRender = false;
     this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
   }

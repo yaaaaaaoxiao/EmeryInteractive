@@ -2,9 +2,11 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { Vec3 } from '../crystal/structures';
 import type { Built, PickTarget } from './build';
+import type { Look } from './look';
 
 const DEFAULT_VIEW = new THREE.Vector3(3.65, 1.95, 1.66).normalize();
 // a site counts as clicked if the pointer is this close to its centre (in CSS pixels), even if it's tiny
@@ -18,11 +20,17 @@ export class Viewer {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
   private controls: OrbitControls;
-  private light = new THREE.DirectionalLight(0xffffff, 2.2);
+  private light = new THREE.DirectionalLight(0xffffff, 2);
+  private fill = new THREE.HemisphereLight(0xffffff, 0x8a8a8a, 1);
+  // studio reflections, made the first time a look needs them
+  private environmentMap: THREE.Texture | null = null;
+  private look: Look | null = null;
   private content: THREE.Group | null = null;
   private pickables: THREE.Object3D[] = [];
   private overlay = new THREE.Group();
   private animation: ((time: number) => boolean) | null = null;
+  // draw only when something changed (camera, scene, size, animation); idle costs nothing
+  private needsRender = true;
   private blockSize: Vec3 = [1, 1, 1];
   private lastPick: { x: number; y: number; keys: string[]; index: number } | null = null;
   // in the neighbours tool, interstitial sites are picked before the atoms in front of them
@@ -44,7 +52,7 @@ export class Viewer {
     container.appendChild(this.labelRenderer.domElement);
 
     this.scene.background = new THREE.Color(0xffffff);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a8a, 1.6));
+    this.scene.add(this.fill);
     this.camera.add(this.light);
     this.light.position.set(1, 2, 3);
     this.scene.add(this.camera);
@@ -88,6 +96,7 @@ export class Viewer {
 
     new ResizeObserver(() => this.resize()).observe(container);
     this.resize();
+    this.controls.addEventListener('change', () => this.requestRender());
     this.renderer.setAnimationLoop((time) => this.frame(time));
   }
 
@@ -107,6 +116,7 @@ export class Viewer {
       this.lastPick = null;
     }
     this.scene.add(built.group);
+    this.requestRender();
     // so clicks right after a rebuild hit the new objects where they are
     this.scene.updateMatrixWorld();
     const sizeChanged = blockSize.some((v, i) => v !== this.blockSize[i]);
@@ -264,11 +274,41 @@ export class Viewer {
     this.labelRenderer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.requestRender();
+  }
+
+  // lights, reflections and tone mapping for a look (the materials come with the scene from build.ts)
+  setLook(look: Look): void {
+    if (look === this.look) return;
+    this.look = look;
+    this.renderer.toneMapping = look.toneMapping;
+    this.renderer.toneMappingExposure = look.exposure;
+    this.fill.intensity = look.hemisphere;
+    this.light.intensity = look.key;
+    if (look.environment > 0 && !this.environmentMap) {
+      // soft studio reflections, rendered once into an environment map
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      this.environmentMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      pmrem.dispose();
+    }
+    this.scene.environment = look.environment > 0 ? this.environmentMap : null;
+    this.scene.environmentIntensity = look.environment;
+    this.requestRender();
+  }
+
+  requestRender(): void {
+    this.needsRender = true;
   }
 
   private frame(time: number): void {
-    if (this.animation && !this.animation(time)) this.animation = null;
+    if (this.animation) {
+      if (!this.animation(time)) this.animation = null;
+      this.needsRender = true;
+    }
+    // with damping the camera keeps gliding after a drag; update() fires 'change' while it moves
     this.controls.update();
+    if (!this.needsRender) return;
+    this.needsRender = false;
     this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
   }

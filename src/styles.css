@@ -77,6 +77,45 @@ body {
   color: inherit;
 }
 
+/* Performance mode: a small switch (the track and knob are drawn by ::before) */
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+}
+.mode-toggle::before {
+  content: "";
+  flex: none;
+  width: 30px;
+  height: 18px;
+  border-radius: 9px;
+  background-color: #c4c9d1;
+  background-image: radial-gradient(circle at 9px 9px, #fff 6px, transparent 6.5px);
+  background-repeat: no-repeat;
+}
+/* animate only after the first render, so a saved choice doesn't visibly switch on at page load */
+.mode-toggle.ready::before {
+  transition:
+    background-color 0.15s,
+    background-position 0.15s;
+}
+.mode-toggle[aria-pressed="true"] {
+  color: var(--text);
+}
+.mode-toggle[aria-pressed="true"]::before {
+  background-color: var(--accent);
+  background-position: 12px 0;
+}
+
 /* layout */
 .layout {
   flex: 1;
@@ -132,9 +171,13 @@ body {
   .help-button {
     margin-left: auto;
   }
-  /* the credit gets its own line under the tabs */
-  .header-credit {
+  /* the Performance mode switch, then the credit, get their own lines under the tabs */
+  .mode-toggle {
     order: 1;
+    padding-left: 0;
+  }
+  .header-credit {
+    order: 2;
     flex-basis: 100%;
     max-width: none;
     margin: 0;

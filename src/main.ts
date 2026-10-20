@@ -2,6 +2,7 @@ import 'katex/dist/katex.min.css';
 import './styles.css';
 import { STRUCTURES, type StructureId } from './crystal/structures';
 import { buildScene } from './scene/build';
+import { LOOKS, savedGraphics, saveGraphics } from './scene/look';
 import { Viewer } from './scene/viewer';
 import { type State, Store, stateFromURL, stateToURL } from './state';
 import { ControlsPanel } from './ui/controls';
@@ -9,7 +10,8 @@ import { renderInfo } from './ui/info';
 
 const $ = (id: string) => document.getElementById(id)!;
 
-const store = new Store(stateFromURL(location.search));
+// the graphics choice is remembered per device; everything else comes from the link
+const store = new Store({ ...stateFromURL(location.search), graphics: savedGraphics() });
 const viewer = new Viewer($('viewer'), (key, additive) => store.clickObject(key, additive));
 const controls = new ControlsPanel($('controls'), store, viewer);
 
@@ -17,10 +19,20 @@ const controls = new ControlsPanel($('controls'), store, viewer);
 const tabs = [...document.querySelectorAll<HTMLButtonElement>('[data-structure]')];
 tabs.forEach((tab) => tab.addEventListener('click', () => store.setStructure(tab.dataset.structure as StructureId)));
 
+// Performance mode: the simpler, faster look for older or slower computers
+const graphicsToggle = $('graphics-toggle');
+graphicsToggle.addEventListener('click', () =>
+  store.set((s) => ({ graphics: s.graphics === 'performance' ? 'quality' : 'performance' })),
+);
+
 // the info panel only depends on a few fields; skip re-rendering it while e.g. a slider is dragged
 const infoKey = (s: State) => JSON.stringify([s.structure, s.neighbors, s.selection, s.direction?.uvw, s.plane.hkl]);
 
 function render(state: State, previous: State | null): void {
+  // lights and reflections first, so the new materials are made for them
+  viewer.setLook(LOOKS[state.graphics]);
+  if (previous && previous.graphics !== state.graphics) saveGraphics(state.graphics);
+  graphicsToggle.setAttribute('aria-pressed', String(state.graphics === 'performance'));
   viewer.sitesFirst = state.neighbors.on;
   viewer.cycleOnRepeat = !state.hideTool;
   viewer.show(
@@ -36,6 +48,7 @@ function render(state: State, previous: State | null): void {
 
 store.subscribe(render);
 render(store.state, null);
+requestAnimationFrame(() => graphicsToggle.classList.add('ready'));
 
 // ↑ / ↓ move the plane along its normal
 window.addEventListener('keydown', (e) => {

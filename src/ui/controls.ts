@@ -99,6 +99,10 @@ export class ControlsPanel {
         (s) => s.style,
         (v) => set({ style: v }),
       ),
+      // the sparse style shrinks every sphere (and keeps the tiniest sites visible), so sizes can't be compared
+      this.bind(h('p', { class: 'hint' }, 'Sparse shows positions only: sphere sizes are not to scale.'), (el, s) => {
+        el.hidden = s.style !== 'sparse';
+      }),
       this.checkbox(
         'Clip to unit cell',
         (s) => s.clipToCell,

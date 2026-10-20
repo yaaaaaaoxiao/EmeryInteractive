@@ -103,9 +103,12 @@ test.describe('neighbors tool', () => {
     await open(page, '?s=bcc&sites=oct&nb=1');
     await clickAt(page, [0.5, 0.5, 0]);
     await page.getByRole('button', { name: 'Grow sphere to fit' }).click();
-    await expect(info(page).locator('.fit')).toHaveText('It stops at r/R = 0.155, where it touches the 2 closest atoms.', {
-      timeout: 5000,
-    });
+    await expect(info(page).locator('.fit')).toHaveText(
+      'It stops at r/R = 0.155 at this exact point, where it touches the 2 closest atoms. Moved into a neighbouring site, a bigger sphere fits.',
+      {
+        timeout: 5000,
+      },
+    );
   });
 });
 
@@ -114,7 +117,7 @@ test('selecting 2 and 3 atoms gives the direction and the plane', async ({ page 
   // the face-centred atoms on the three faces turned towards the camera
   await clickAt(page, [1, 0.5, 0.5]);
   await clickAt(page, [0.5, 1, 0.5], { shift: true });
-  await expect(info(page).locator('.card.selection')).toContainText('Direction [-1 1 0]');
+  await expect(info(page).locator('.card.selection')).toContainText('Direction [1\u0305 1 0]');
   await clickAt(page, [0.5, 0.5, 1], { shift: true });
   await expect(info(page).locator('.card.selection')).toContainText('Plane (1 1 1)');
   await expect(page.getByLabel('Show plane')).toBeChecked();
@@ -198,4 +201,15 @@ test('Performance mode switches to the simple look and is remembered on this dev
   await page.waitForFunction(() => 'viewer' in window);
   await expect(page.getByRole('button', { name: 'Performance mode' })).toHaveAttribute('aria-pressed', 'true');
   expect(await material()).toBe('MeshStandardMaterial');
+});
+
+test('the BCC octahedral site is described as a distorted doorway', async ({ page }) => {
+  await open(page, '?s=bcc&sites=oct&nb=1');
+  await expect(info(page).locator('table.sites')).toContainText('6 (2 + 4)');
+  await expect(info(page).locator('table.sites')).toContainText('doorway');
+  await clickAt(page, [0.5, 0.5, 0]);
+  const card = info(page).locator('.card.neighbors');
+  await expect(card).toContainText('This is a doorway, not a pocket.');
+  await expect(card).toContainText('two tetrahedral sites, each 0.250a away (r/R = 0.291)');
+  await expect(card).toContainText('carbon still sits in octahedral sites');
 });

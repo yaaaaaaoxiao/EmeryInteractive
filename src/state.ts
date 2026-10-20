@@ -1,7 +1,7 @@
 // The single source of truth for what is on screen. Controls change fields here; the scene is rebuilt from it.
 
-import { STRUCTURES, type SiteId, type StructureId, type Vec3 } from './crystal/structures';
-import { atomObjects, dist, nearestAtoms, sub, toIntegerIndices, type ObjectKind } from './crystal/lattice';
+import { atomObjects, dist, nearestAtoms, type ObjectKind, sub, toIntegerIndices } from './crystal/lattice';
+import { type SiteId, STRUCTURES, type StructureId, type Vec3 } from './crystal/structures';
 
 export type Style = 'hard' | 'sparse';
 export type SliceMode = 'section' | 'cutaway';
@@ -75,9 +75,11 @@ export function standardOffset(hkl: Vec3): number {
 export function offsetRange(hkl: Vec3, repeat: Vec3): [number, number] {
   const n = unitNormal(hkl);
   const values: number[] = [];
-  for (const x of [0, repeat[0]]) for (const y of [0, repeat[1]]) for (const z of [0, repeat[2]]) {
-    values.push(n[0] * x + n[1] * y + n[2] * z);
-  }
+  for (const x of [0, repeat[0]])
+    for (const y of [0, repeat[1]])
+      for (const z of [0, repeat[2]]) {
+        values.push(n[0] * x + n[1] * y + n[2] * z);
+      }
   return [Math.min(...values), Math.max(...values)];
 }
 
@@ -120,7 +122,9 @@ export class Store {
   }
 
   setNeighborsOn(on: boolean): void {
-    this.set((s) => ({ neighbors: { ...s.neighbors, on, target: on ? s.neighbors.target ?? typicalAtom(s.structure) : s.neighbors.target } }));
+    this.set((s) => ({
+      neighbors: { ...s.neighbors, on, target: on ? (s.neighbors.target ?? typicalAtom(s.structure)) : s.neighbors.target },
+    }));
   }
 
   // solo only makes sense with the tool on, so turning it on also turns the tool on
@@ -228,7 +232,9 @@ export function stateToURL(s: State): string {
   const q = new URLSearchParams();
   q.set('s', s.structure);
   if (s.showAtoms !== d.showAtoms) q.set('atoms', '0');
-  const sites = Object.entries(s.showSites).filter(([, on]) => on).map(([id]) => id);
+  const sites = Object.entries(s.showSites)
+    .filter(([, on]) => on)
+    .map(([id]) => id);
   if (sites.length) q.set('sites', sites.join(','));
   if (s.style !== d.style) q.set('style', s.style);
   if (s.clipToCell !== d.clipToCell) q.set('clip', '0');

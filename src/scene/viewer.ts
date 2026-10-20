@@ -28,7 +28,10 @@ export class Viewer {
   // in the neighbours tool, interstitial sites are picked before the atoms in front of them
   sitesFirst = false;
 
-  constructor(private container: HTMLElement, onPick: (key: string | null, additive: boolean) => void) {
+  constructor(
+    private container: HTMLElement,
+    onPick: (key: string | null, additive: boolean) => void,
+  ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.localClippingEnabled = true;
@@ -94,7 +97,10 @@ export class Viewer {
     this.content = built.group;
     this.pickables = built.pickables;
     // keep the click-again cycle only while the same objects are clickable
-    if (this.lastPick && !this.lastPick.keys.every((k) => built.pickables.some((m) => (m.userData.pick as PickTarget).key === k))) {
+    if (
+      this.lastPick &&
+      !this.lastPick.keys.every((k) => built.pickables.some((m) => (m.userData.pick as PickTarget).key === k))
+    ) {
       this.lastPick = null;
     }
     this.scene.add(built.group);
@@ -142,7 +148,8 @@ export class Viewer {
     const keys = this.objectsUnderPointer(e.clientX, e.clientY);
     // clicking the same spot again steps to the next object behind
     const last = this.lastPick;
-    const again = last && Math.hypot(e.clientX - last.x, e.clientY - last.y) < REPEAT_CLICK_PX && last.keys.join() === keys.join();
+    const again =
+      last && Math.hypot(e.clientX - last.x, e.clientY - last.y) < REPEAT_CLICK_PX && last.keys.join() === keys.join();
     const index = again && keys.length ? (last.index + 1) % keys.length : 0;
     this.lastPick = { x: e.clientX, y: e.clientY, keys, index };
     return keys[index] ?? null;
@@ -165,7 +172,12 @@ export class Viewer {
       const p = center.clone().project(this.camera);
       const sx = rect.left + ((p.x + 1) / 2) * rect.width;
       const sy = rect.top + ((1 - p.y) / 2) * rect.height;
-      return { offCenter: Math.hypot(sx - clientX, sy - clientY), radiusPx: (target.radius * pxPerUnit) / distance, distance, behind: p.z > 1 };
+      return {
+        offCenter: Math.hypot(sx - clientX, sy - clientY),
+        radiusPx: (target.radius * pxPerUnit) / distance,
+        distance,
+        behind: p.z > 1,
+      };
     };
     const add = (target: PickTarget, depth: number) => {
       const prev = found.get(target.key);
@@ -215,7 +227,7 @@ export class Viewer {
     this.animation = (time) => {
       start ??= time;
       const t = Math.min((time - start) / duration, 1);
-      const r = finalRadius * (1 - Math.pow(1 - t, 3));
+      const r = finalRadius * (1 - (1 - t) ** 3);
       sphere.scale.setScalar(Math.max(r, 1e-4));
       div.textContent = `r/R = ${(r / atomRadius).toFixed(3)}`;
       if (t >= 1) {

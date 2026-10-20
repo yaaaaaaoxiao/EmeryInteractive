@@ -3,7 +3,11 @@
 type Attrs = Record<string, string | number | boolean | EventListener | undefined>;
 type Child = Node | string | null | undefined | false;
 
-export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs = {}, ...children: Child[]): HTMLElementTagNameMap[K] {
+export function h<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  attrs: Attrs = {},
+  ...children: Child[]
+): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
   for (const [name, value] of Object.entries(attrs)) {
     if (value === undefined || value === false) continue;
@@ -23,14 +27,25 @@ export function swatch(color: number): HTMLSpanElement {
 }
 
 export function checkbox(label: Child, checked: boolean, onChange: (checked: boolean) => void, color?: number) {
-  const input = h('input', { type: 'checkbox', checked, onchange: (e: Event) => onChange((e.target as HTMLInputElement).checked) });
+  const input = h('input', {
+    type: 'checkbox',
+    checked,
+    onchange: (e: Event) => onChange((e.target as HTMLInputElement).checked),
+  });
   return h('label', { class: 'check' }, input, color !== undefined ? swatch(color) : null, label);
 }
 
 export function segmented<T extends string>(options: [T, string][], value: T, onChange: (v: T) => void) {
-  return h('div', { class: 'segmented', role: 'group' },
+  return h(
+    'div',
+    { class: 'segmented', role: 'group' },
     ...options.map(([v, text]) =>
-      h('button', { type: 'button', class: v === value ? 'on' : '', 'aria-pressed': String(v === value), onclick: () => onChange(v) }, text)),
+      h(
+        'button',
+        { type: 'button', class: v === value ? 'on' : '', 'aria-pressed': String(v === value), onclick: () => onChange(v) },
+        text,
+      ),
+    ),
   );
 }
 

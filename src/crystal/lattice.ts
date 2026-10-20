@@ -46,7 +46,14 @@ export function objectKey(kind: ObjectKind, pos: Vec3): string {
 
 // the 48 operations of the cubic point group: all permutations of (x, y, z) with all sign changes
 const CUBIC_OPS: ((v: Vec3) => Vec3)[] = (() => {
-  const perms = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  const perms = [
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 0, 2],
+    [1, 2, 0],
+    [2, 0, 1],
+    [2, 1, 0],
+  ];
   const ops: ((v: Vec3) => Vec3)[] = [];
   for (const p of perms) {
     for (let s = 0; s < 8; s++) {

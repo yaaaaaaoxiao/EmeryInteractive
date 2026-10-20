@@ -201,3 +201,11 @@ describe('hiding atoms', () => {
     expect(stateFromURL('?s=fcc&hide=0.5,0.5,0.5;9,9,9;0,0,0').hidden).toEqual([atom(0, 0, 0)]);
   });
 });
+
+describe('graphics preference', () => {
+  it('is never part of a link', () => {
+    const s: State = { ...defaultState(), graphics: 'performance' };
+    expect(stateToURL(s)).toBe('?s=fcc');
+    expect(stateFromURL('?s=fcc&graphics=performance').graphics).toBe('quality');
+  });
+});

@@ -6,7 +6,7 @@ import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { atomObjects, type CrystalObject, fraction, objectKey, siteObjects } from '../crystal/lattice';
 import { STRUCTURES, type Vec3 } from '../crystal/structures';
 import { neighborsOf, parseKey, type State, unitNormal } from '../state';
-import { makeMaterial } from './look';
+import { LOOKS, type Look, makeMaterial } from './look';
 
 export const COLORS = {
   highlight: 0xff6347,
@@ -79,8 +79,11 @@ function outlineGeometry(radius: number): THREE.SphereGeometry {
   return g;
 }
 
+// the look of the scene being built (set at the start of buildScene, used by material())
+let look: Look = LOOKS.quality;
+
 function material(color: number, opacity: number, clippingPlanes: THREE.Plane[] = [], depthWrite = opacity > 0.5) {
-  return makeMaterial({
+  return makeMaterial(look, {
     color,
     transparent: opacity < 1,
     opacity,
@@ -216,6 +219,7 @@ export function polyhedron(points: Vec3[], color: number, opacity: number): THRE
 //////////////// the scene
 
 export function buildScene(state: State, callbacks: BuildCallbacks): Built {
+  look = LOOKS[state.graphics];
   const structure = STRUCTURES[state.structure];
   const group = new THREE.Group();
   const pickables: THREE.Object3D[] = [];

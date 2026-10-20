@@ -12,6 +12,7 @@ import {
   toIntegerIndices,
 } from './crystal/lattice';
 import { type SiteId, STRUCTURES, type StructureId, type Vec3 } from './crystal/structures';
+import type { Graphics } from './scene/look';
 
 export type Style = 'hard' | 'sparse';
 export type SliceMode = 'section' | 'cutaway';
@@ -33,6 +34,8 @@ export interface State {
   // keys of hidden atoms (drawn as outlines), and whether a click hides/shows atoms
   hidden: string[];
   hideTool: boolean;
+  // a per-device preference (remembered in the browser, not in links)
+  graphics: Graphics;
   // keys of selected objects (see objectKey)
   selection: string[];
   marker: Vec3 | null;
@@ -58,6 +61,7 @@ export function defaultState(): State {
     neighbors: { on: false, target: null, solo: false },
     hidden: [],
     hideTool: false,
+    graphics: 'quality',
     selection: [],
     marker: null,
     direction: null,

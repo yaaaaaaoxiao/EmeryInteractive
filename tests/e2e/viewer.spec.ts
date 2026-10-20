@@ -171,3 +171,31 @@ test('hide atoms by position and with the hide tool', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'No hidden atoms' })).toBeDisabled();
   await expect(corners).toHaveAttribute('aria-pressed', 'false');
 });
+
+test('Performance mode switches to the simple look and is remembered on this device, not in the link', async ({ page }) => {
+  await open(page, '?s=fcc');
+  const material = () =>
+    page.evaluate(() => {
+      const { viewer } = window as unknown as {
+        viewer: { scene: { traverse(f: (o: { userData: { pick?: unknown }; material?: { type: string } }) => void): void } };
+      };
+      let type = '';
+      viewer.scene.traverse((o) => {
+        if (!type && o.userData.pick && o.material) type = o.material.type;
+      });
+      return type;
+    });
+  const toggle = page.getByRole('button', { name: 'Performance mode' });
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  expect(await material()).toBe('MeshPhysicalMaterial');
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  expect(await material()).toBe('MeshStandardMaterial');
+  await expect(page).toHaveURL(/\?s=fcc$/);
+
+  await page.reload();
+  await page.waitForFunction(() => 'viewer' in window);
+  await expect(page.getByRole('button', { name: 'Performance mode' })).toHaveAttribute('aria-pressed', 'true');
+  expect(await material()).toBe('MeshStandardMaterial');
+});

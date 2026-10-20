@@ -146,3 +146,16 @@ describe('hidden atoms', () => {
     expect(picked({ ...section, hidden }).has(hidden[0])).toBe(false);
   });
 });
+
+describe('graphics', () => {
+  const materialTypes = (state: State) => {
+    const types = new Set<string>();
+    for (const m of buildScene(state, noop).pickables) types.add(((m as THREE.Mesh).material as THREE.Material).type);
+    return [...types];
+  };
+
+  it('the default look is glossy; Performance mode uses the cheaper original material', () => {
+    expect(materialTypes(defaultState())).toEqual(['MeshPhysicalMaterial']);
+    expect(materialTypes({ ...defaultState(), graphics: 'performance' })).toEqual(['MeshStandardMaterial']);
+  });
+});

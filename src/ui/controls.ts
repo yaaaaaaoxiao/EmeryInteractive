@@ -76,6 +76,7 @@ export class ControlsPanel {
     //////// neighbours
     const neighbors = section('Neighbors', true,
       this.checkbox('Neighbors tool', (s) => s.neighbors.on, (v) => store.setNeighborsOn(v)),
+      this.checkbox('Solo: hide everything else', (s) => s.neighbors.on && s.neighbors.solo, (v) => store.setNeighborsSolo(v)),
       h('p', { class: 'hint' }, 'Click any atom or site to see its nearest atoms, bonds and count. Turn on a site type under Show to pick sites.'),
     );
 

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { STRUCTURES, type Vec3 } from '../crystal/structures';
-import { atomObjects, fraction, siteObjects, type CrystalObject } from '../crystal/lattice';
+import { atomObjects, fraction, objectKey, siteObjects, type CrystalObject } from '../crystal/lattice';
 import { neighborsOf, parseKey, unitNormal, type State } from '../state';
 
 export const COLORS = {
@@ -211,9 +211,11 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
   // every plane that cuts the spheres
   const cuts = [...box, ...(cutaway ? [slice] : [])];
   const selected = new Set(state.selection);
+  // neighbours tool in solo: only the target and its surrounding atoms are drawn
+  const solo = state.neighbors.on && state.neighbors.solo;
 
   //////// atoms and sites
-  for (const obj of objects) {
+  for (const obj of solo ? [] : objects) {
     const r = displayRadius(state, obj.radius);
     const isAtom = obj.kind === 'atom';
     const faded = state.neighbors.on;
@@ -270,7 +272,7 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
   }
 
   //////// polyhedra around every visible site
-  if (state.polyhedra && !section) {
+  if (state.polyhedra && !section && !solo) {
     for (const obj of objects) {
       if (obj.kind === 'atom') continue;
       const n = neighborsOf(state.structure, obj.key);
@@ -293,6 +295,11 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
       const m = new THREE.Mesh(sphereGeometry(neighborRadius), material(structure.color, neighborOpacity));
       m.position.copy(v3(p));
       group.add(m);
+      // in solo these are the only atoms on screen, so clicking one moves to it
+      if (solo) {
+        m.userData.pick = { key: objectKey('atom', p), isSite: false, center: p, radius: neighborRadius } satisfies PickTarget;
+        pickables.push(m);
+      }
       group.add(bond(n.pos, p, 0.015, COLORS.bond));
     }
     if (n.positions.length >= 3) group.add(polyhedron(n.positions, targetColor, 0.2));

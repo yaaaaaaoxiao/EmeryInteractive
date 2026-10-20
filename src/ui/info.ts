@@ -52,7 +52,9 @@ export function renderInfo(root: HTMLElement, state: State, viewer: Viewer): voi
     } else {
       card.append(h('p', {}, 'Coordination number = ', h('strong', {}, String(n.positions.length))));
     }
-    card.append(h('p', { class: 'hint' }, 'Click another atom or site to compare. Sites are picked before the atoms in front of them; click the same spot again to pick the next object behind.'));
+    card.append(h('p', { class: 'hint' }, state.neighbors.solo
+      ? 'Solo: click a neighboring atom to move to it. Turn off Solo to pick a site.'
+      : 'Click another atom or site to compare. Sites are picked before the atoms in front of them; click the same spot again to pick the next object behind.'));
     blocks.push(card);
   }
 

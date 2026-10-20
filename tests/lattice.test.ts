@@ -1,16 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import { atomObjects, fraction, nearestAtoms, orbit, siteInfo, siteObjects, toIntegerIndices } from '../src/crystal/lattice';
 import { STRUCTURES } from '../src/crystal/structures';
-import { atomObjects, nearestAtoms, orbit, siteInfo, siteObjects, toIntegerIndices, fraction } from '../src/crystal/lattice';
 
 const info = (s: keyof typeof STRUCTURES) =>
-  Object.fromEntries(STRUCTURES[s].sites.map((t) => {
-    const i = siteInfo(STRUCTURES[s], t);
-    return [t.id, { perCell: i.perCell, cn: i.coordination, ratio: +i.ratio.toFixed(3) }];
-  }));
+  Object.fromEntries(
+    STRUCTURES[s].sites.map((t) => {
+      const i = siteInfo(STRUCTURES[s], t);
+      return [t.id, { perCell: i.perCell, cn: i.coordination, ratio: +i.ratio.toFixed(3) }];
+    }),
+  );
 
 describe('atoms', () => {
   it('has the right atoms per cell and coordination', () => {
-    for (const [id, n, cn] of [['fcc', 4, 12], ['bcc', 2, 8], ['sc', 1, 6]] as const) {
+    for (const [id, n, cn] of [
+      ['fcc', 4, 12],
+      ['bcc', 2, 8],
+      ['sc', 1, 6],
+    ] as const) {
       const s = STRUCTURES[id];
       expect(orbit([0, 0, 0], s.centering)).toHaveLength(n);
       expect(nearestAtoms(s, [0, 0, 0]).positions).toHaveLength(cn);

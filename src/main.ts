@@ -3,7 +3,7 @@ import './styles.css';
 import { STRUCTURES, type StructureId } from './crystal/structures';
 import { buildScene } from './scene/build';
 import { Viewer } from './scene/viewer';
-import { Store, stateFromURL, stateToURL, type State } from './state';
+import { type State, Store, stateFromURL, stateToURL } from './state';
 import { ControlsPanel } from './ui/controls';
 import { renderInfo } from './ui/info';
 
@@ -18,12 +18,14 @@ const tabs = [...document.querySelectorAll<HTMLButtonElement>('[data-structure]'
 tabs.forEach((tab) => tab.addEventListener('click', () => store.setStructure(tab.dataset.structure as StructureId)));
 
 // the info panel only depends on a few fields; skip re-rendering it while e.g. a slider is dragged
-const infoKey = (s: State) =>
-  JSON.stringify([s.structure, s.neighbors, s.selection, s.direction?.uvw, s.plane.hkl]);
+const infoKey = (s: State) => JSON.stringify([s.structure, s.neighbors, s.selection, s.direction?.uvw, s.plane.hkl]);
 
 function render(state: State, previous: State | null): void {
   viewer.sitesFirst = state.neighbors.on;
-  viewer.show(buildScene(state, { onDeselect: (key) => store.setSelection(store.state.selection.filter((k) => k !== key)) }), state.repeat);
+  viewer.show(
+    buildScene(state, { onDeselect: (key) => store.setSelection(store.state.selection.filter((k) => k !== key)) }),
+    state.repeat,
+  );
   controls.render(state);
   if (!previous || infoKey(state) !== infoKey(previous)) renderInfo($('info'), state, viewer);
   tabs.forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.structure === state.structure)));

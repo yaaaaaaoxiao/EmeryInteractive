@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    // the original 2019 site is kept unchanged, and test/ holds the original authors' notebooks
+    "includes": ["**", "!public/legacy", "!test", "!package-lock.json"]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 130
+  },
+  "javascript": {
+    "formatter": { "quoteStyle": "single", "trailingCommas": "all", "semicolons": "always" }
+  },
+  "linter": {
+    "rules": {
+      "recommended": true,
+      "style": {
+        // `$('id')!` for elements that are always in index.html
+        "noNonNullAssertion": "off",
+        // false positives for rules that style different elements (e.g. `.segmented button` vs `.buttons button`)
+        "noDescendingSpecificity": "off"
+      },
+      "suspicious": {
+        // flags every `forEach((x) => doSomething(x))`
+        "useIterableCallbackReturn": "off"
+      }
+    }
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+}

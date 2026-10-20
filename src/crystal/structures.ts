@@ -48,7 +48,12 @@ export const STRUCTURES: Record<StructureId, Structure> = {
     shortName: 'FCC',
     color: 0x228b22,
     atomRadius: Math.SQRT2 / 4,
-    centering: [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]],
+    centering: [
+      [0, 0, 0],
+      [0.5, 0.5, 0],
+      [0.5, 0, 0.5],
+      [0, 0.5, 0.5],
+    ],
     sites: [
       { ...OCT, representative: [0.5, 0.5, 0.5] },
       { ...TET, representative: [0.25, 0.25, 0.25] },
@@ -69,7 +74,10 @@ export const STRUCTURES: Record<StructureId, Structure> = {
     shortName: 'BCC',
     color: 0x2457d6,
     atomRadius: Math.sqrt(3) / 4,
-    centering: [[0, 0, 0], [0.5, 0.5, 0.5]],
+    centering: [
+      [0, 0, 0],
+      [0.5, 0.5, 0.5],
+    ],
     sites: [
       { ...OCT, representative: [0.5, 0.5, 0] },
       { ...TET, representative: [0.5, 0.25, 0] },

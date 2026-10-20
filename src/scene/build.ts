@@ -3,9 +3,9 @@
 import * as THREE from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { atomObjects, type CrystalObject, fraction, objectKey, siteObjects } from '../crystal/lattice';
 import { STRUCTURES, type Vec3 } from '../crystal/structures';
-import { atomObjects, fraction, objectKey, siteObjects, type CrystalObject } from '../crystal/lattice';
-import { neighborsOf, parseKey, unitNormal, type State } from '../state';
+import { neighborsOf, parseKey, type State, unitNormal } from '../state';
 
 export const COLORS = {
   highlight: 0xff6347,
@@ -98,7 +98,15 @@ function slicePlane(state: State): THREE.Plane {
 
 // a flat disk filling the cut where `plane` crosses a sphere (null if it doesn't)
 // (`onTop` pulls it in front of a translucent slice sheet drawn on the same plane)
-function capDisk(center: Vec3, radius: number, plane: THREE.Plane, color: number, opacity: number, clip: THREE.Plane[], onTop = false) {
+function capDisk(
+  center: Vec3,
+  radius: number,
+  plane: THREE.Plane,
+  color: number,
+  opacity: number,
+  clip: THREE.Plane[],
+  onTop = false,
+) {
   const c = v3(center);
   const s = plane.distanceToPoint(c);
   if (Math.abs(s) >= radius) return null;
@@ -121,7 +129,12 @@ function planeSheet(plane: THREE.Plane, repeat: Vec3, color: number, opacity: nu
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(size, size),
     new THREE.MeshBasicMaterial({
-      color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false, clippingPlanes: boxPlanes(repeat),
+      color,
+      transparent: true,
+      opacity,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      clippingPlanes: boxPlanes(repeat),
     }),
   );
   const center = v3(repeat).multiplyScalar(0.5);
@@ -173,10 +186,7 @@ export function polyhedron(points: Vec3[], color: number, opacity: number): THRE
     geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.computeVertexNormals();
-    const outline = new THREE.LineLoop(
-      new THREE.BufferGeometry().setFromPoints(sorted),
-      new THREE.LineBasicMaterial({ color }),
-    );
+    const outline = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(sorted), new THREE.LineBasicMaterial({ color }));
     group.add(outline);
   } else if (vs.length >= 4) {
     geometry = new ConvexGeometry(vs);
@@ -307,7 +317,13 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
 
   //////// selection: labels and the polyhedron through 4+ objects
   if (state.selection.length >= 4) {
-    group.add(polyhedron(state.selection.map((k) => parseKey(k).pos), COLORS.highlight, 0.35));
+    group.add(
+      polyhedron(
+        state.selection.map((k) => parseKey(k).pos),
+        COLORS.highlight,
+        0.35,
+      ),
+    );
   }
   if (state.labels) {
     for (const key of state.selection) {
@@ -367,11 +383,13 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
 function cellEdges(repeat: Vec3): THREE.Group {
   const group = new THREE.Group();
   const inner: number[] = [];
-  for (let i = 0; i < repeat[0]; i++) for (let j = 0; j < repeat[1]; j++) for (let k = 0; k < repeat[2]; k++) {
-    const g = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
-    const p = g.getAttribute('position');
-    for (let n = 0; n < p.count; n++) inner.push(p.getX(n) + i + 0.5, p.getY(n) + j + 0.5, p.getZ(n) + k + 0.5);
-  }
+  for (let i = 0; i < repeat[0]; i++)
+    for (let j = 0; j < repeat[1]; j++)
+      for (let k = 0; k < repeat[2]; k++) {
+        const g = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
+        const p = g.getAttribute('position');
+        for (let n = 0; n < p.count; n++) inner.push(p.getX(n) + i + 0.5, p.getY(n) + j + 0.5, p.getZ(n) + k + 0.5);
+      }
   if (repeat.some((v) => v > 1)) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(inner, 3));
@@ -379,7 +397,7 @@ function cellEdges(repeat: Vec3): THREE.Group {
   }
   // drawn a hair outside the cell so the filled cuts on the cell faces don't hide it
   const outer = new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.BoxGeometry(...repeat.map((v) => v + 0.006) as Vec3)),
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(...(repeat.map((v) => v + 0.006) as Vec3))),
     new THREE.LineBasicMaterial({ color: COLORS.outerEdge }),
   );
   outer.position.copy(v3(repeat).multiplyScalar(0.5));

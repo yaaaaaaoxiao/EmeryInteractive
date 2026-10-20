@@ -22,9 +22,13 @@ Requires Node.js 20 or newer.
 
 ```bash
 npm install
-npm run dev      # local server with live reload
-npm test         # unit tests for the crystal geometry
-npm run build    # production build in dist/
+npm run dev        # local server with live reload
+npm test           # unit tests (crystal geometry, settings rules, links, scene)
+npm run test:e2e   # browser tests in Chromium and WebKit (first run: npx playwright install chromium webkit)
+npm run lint       # lint and formatting check (Biome)
+npm run format     # fix formatting and safe lint issues
+npm run check      # everything the pull-request checks run
+npm run build      # production build in dist/
 ```
 
 Code layout:
@@ -34,6 +38,11 @@ Code layout:
 - `src/scene/` — builds the three.js scene from the state; renderer, camera and picking
 - `src/ui/` — the controls and information panels
 - `public/legacy/` — the original version of the site, served unchanged at `legacy/`
+- `tests/` — unit tests (Vitest); `tests/e2e/` — browser tests (Playwright)
+
+## Checks
+
+Every pull request runs `.github/workflows/ci.yml`: lint and formatting, type checking, unit tests, the build, and browser tests in Chromium and WebKit. To make GitHub block merging until they pass, add a branch rule for `master` (Settings → Rules → Rulesets, or Settings → Branches) that requires the "Lint, types, unit tests, build" and "Browser tests" checks.
 
 ## Deployment
 

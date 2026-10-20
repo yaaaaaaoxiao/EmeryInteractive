@@ -4,9 +4,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { Vec3 } from '../crystal/structures';
-import type { Built } from './build';
+import type { Built, PickTarget } from './build';
 
 const DEFAULT_VIEW = new THREE.Vector3(3.65, 1.95, 1.66).normalize();
+// a site counts as clicked if the pointer is this close to its centre (in CSS pixels), even if it's tiny
+const SITE_TOLERANCE_PX = 12;
+// clicking again within this distance moves to the next object under the pointer
+const REPEAT_CLICK_PX = 6;
 
 export class Viewer {
   readonly renderer: THREE.WebGLRenderer;
@@ -20,6 +24,9 @@ export class Viewer {
   private overlay = new THREE.Group();
   private animation: ((time: number) => boolean) | null = null;
   private blockSize: Vec3 = [1, 1, 1];
+  private lastPick: { x: number; y: number; keys: string[]; index: number } | null = null;
+  // in the neighbours tool, interstitial sites are picked before the atoms in front of them
+  sitesFirst = false;
 
   constructor(private container: HTMLElement, onPick: (key: string | null, additive: boolean) => void) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -67,7 +74,13 @@ export class Viewer {
     this.cancelAnimation();
     this.content = built.group;
     this.pickables = built.pickables;
+    // keep the click-again cycle only while the same objects are clickable
+    if (this.lastPick && !this.lastPick.keys.every((k) => built.pickables.some((m) => (m.userData.pick as PickTarget).key === k))) {
+      this.lastPick = null;
+    }
     this.scene.add(built.group);
+    // so clicks right after a rebuild hit the new objects where they are
+    this.scene.updateMatrixWorld();
     const sizeChanged = blockSize.some((v, i) => v !== this.blockSize[i]);
     this.blockSize = blockSize;
     if (sizeChanged || !this.controls.target.lengthSq()) this.resetCamera();
@@ -107,12 +120,59 @@ export class Viewer {
   //////////////// picking
 
   private pick(e: PointerEvent): string | null {
+    const keys = this.objectsUnderPointer(e.clientX, e.clientY);
+    // clicking the same spot again steps to the next object behind
+    const last = this.lastPick;
+    const again = last && Math.hypot(e.clientX - last.x, e.clientY - last.y) < REPEAT_CLICK_PX && last.keys.join() === keys.join();
+    const index = again && keys.length ? (last.index + 1) % keys.length : 0;
+    this.lastPick = { x: e.clientX, y: e.clientY, keys, index };
+    return keys[index] ?? null;
+  }
+
+  // every object under the pointer, in the order a click should choose them
+  objectsUnderPointer(clientX: number, clientY: number): string[] {
     const rect = this.renderer.domElement.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     const ray = new THREE.Raycaster();
     ray.setFromCamera(ndc, this.camera);
-    const hit = ray.intersectObjects(this.pickables, false).find((h) => isVisibleHit(h));
-    return hit ? (hit.object.userData.key as string) : null;
+
+    // depth = distance from the camera to the front of the object;
+    // offCenter = how far the pointer is from the object's centre on screen (px)
+    const found = new Map<string, { target: PickTarget; depth: number; offCenter: number }>();
+    const pxPerUnit = rect.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)));
+    const screen = (target: PickTarget) => {
+      const center = new THREE.Vector3(...target.center);
+      const distance = center.distanceTo(this.camera.position);
+      const p = center.clone().project(this.camera);
+      const sx = rect.left + ((p.x + 1) / 2) * rect.width;
+      const sy = rect.top + ((1 - p.y) / 2) * rect.height;
+      return { offCenter: Math.hypot(sx - clientX, sy - clientY), radiusPx: (target.radius * pxPerUnit) / distance, distance, behind: p.z > 1 };
+    };
+    const add = (target: PickTarget, depth: number) => {
+      const prev = found.get(target.key);
+      if (!prev || depth < prev.depth) found.set(target.key, { target, depth, offCenter: screen(target).offCenter });
+    };
+
+    for (const hit of ray.intersectObjects(this.pickables, false)) {
+      if (isVisibleHit(hit)) add(hit.object.userData.pick as PickTarget, hit.distance);
+    }
+
+    // small sites are hard to hit exactly: accept clicks near their centre on screen
+    for (const m of this.pickables) {
+      const target = m.userData.pick as PickTarget;
+      if (!target.isSite || found.has(target.key)) continue;
+      const s = screen(target);
+      if (!s.behind && s.offCenter <= Math.max(s.radiusPx, SITE_TOLERANCE_PX)) add(target, s.distance - target.radius);
+    }
+
+    const list = [...found.values()].sort((a, b) => {
+      if (this.sitesFirst && a.target.isSite !== b.target.isSite) return a.target.isSite ? -1 : 1;
+      // among sites in the neighbours tool, the one whose centre is closest to the pointer wins
+      // (a small site seen through a larger one is still easy to pick)
+      if (this.sitesFirst && a.target.isSite && Math.abs(a.offCenter - b.offCenter) > 2) return a.offCenter - b.offCenter;
+      return a.depth - b.depth;
+    });
+    return list.map((f) => f.target.key);
   }
 
   //////////////// "grow sphere to fit" animation

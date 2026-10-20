@@ -22,6 +22,7 @@ const infoKey = (s: State) =>
   JSON.stringify([s.structure, s.neighbors, s.selection, s.direction?.uvw, s.plane.hkl]);
 
 function render(state: State, previous: State | null): void {
+  viewer.sitesFirst = state.neighbors.on;
   viewer.show(buildScene(state, { onDeselect: (key) => store.setSelection(store.state.selection.filter((k) => k !== key)) }), state.repeat);
   controls.render(state);
   if (!previous || infoKey(state) !== infoKey(previous)) renderInfo($('info'), state, viewer);
@@ -57,4 +58,4 @@ $('help').addEventListener('click', (e) => {
 });
 
 // handy for debugging in the browser console during development
-if (import.meta.env.DEV) Object.assign(window, { store });
+if (import.meta.env.DEV) Object.assign(window, { store, viewer });

@@ -18,7 +18,8 @@ export interface State {
   // one plane: (h k l) and its distance from the origin along the unit normal, in units of a
   plane: { hkl: Vec3; offset: number; show: boolean };
   slice: { on: boolean; mode: SliceMode; flip: boolean };
-  neighbors: { on: boolean; target: string | null };
+  // solo: show only the target and its surrounding atoms
+  neighbors: { on: boolean; target: string | null; solo: boolean };
   // keys of selected objects (see objectKey)
   selection: string[];
   marker: Vec3 | null;
@@ -41,7 +42,7 @@ export function defaultState(): State {
     repeat: [1, 1, 1],
     plane: { hkl: [1, 0, 0], offset: 0.5, show: false },
     slice: { on: false, mode: 'section', flip: false },
-    neighbors: { on: false, target: null },
+    neighbors: { on: false, target: null, solo: false },
     selection: [],
     marker: null,
     direction: null,
@@ -106,7 +107,7 @@ export class Store {
       structure,
       selection: [],
       direction: null,
-      neighbors: { on: s.neighbors.on, target: s.neighbors.on ? typicalAtom(structure) : null },
+      neighbors: { ...s.neighbors, target: s.neighbors.on ? typicalAtom(structure) : null },
     }));
   }
 
@@ -119,14 +120,21 @@ export class Store {
   }
 
   setNeighborsOn(on: boolean): void {
-    this.set((s) => ({ neighbors: { on, target: on ? s.neighbors.target ?? typicalAtom(s.structure) : s.neighbors.target } }));
+    this.set((s) => ({ neighbors: { ...s.neighbors, on, target: on ? s.neighbors.target ?? typicalAtom(s.structure) : s.neighbors.target } }));
+  }
+
+  // solo only makes sense with the tool on, so turning it on also turns the tool on
+  setNeighborsSolo(solo: boolean): void {
+    this.set((s) => ({
+      neighbors: { on: s.neighbors.on || solo, solo, target: s.neighbors.target ?? typicalAtom(s.structure) },
+    }));
   }
 
   // click on an object: select it (shift adds/removes), or pick the neighbours target in that mode
   clickObject(key: string | null, additive: boolean): void {
     const s = this.state;
     if (s.neighbors.on) {
-      if (key) this.set({ neighbors: { on: true, target: key } });
+      if (key) this.set({ neighbors: { ...s.neighbors, target: key } });
       return;
     }
     let selection: string[];
@@ -209,7 +217,8 @@ export function stateFromURL(search: string): State {
     const [on, mode, flip] = sl.split(',');
     s.slice = { on: on === '1', mode: mode === 'cutaway' ? 'cutaway' : 'section', flip: flip === '1' };
   }
-  if (bool(q.get('nb'), false)) s.neighbors = { on: true, target: typicalAtom(s.structure) };
+  const nb = q.get('nb');
+  if (nb === '1' || nb === 'solo') s.neighbors = { on: true, target: typicalAtom(s.structure), solo: nb === 'solo' };
   s.labels = bool(q.get('labels'), s.labels);
   return s;
 }
@@ -230,7 +239,7 @@ export function stateToURL(s: State): string {
     q.set('plane', [...s.plane.hkl, +s.plane.offset.toFixed(4), s.plane.show ? 1 : 0].join(','));
   }
   if (s.slice.on) q.set('slice', ['1', s.slice.mode, s.slice.flip ? '1' : '0'].join(','));
-  if (s.neighbors.on) q.set('nb', '1');
+  if (s.neighbors.on) q.set('nb', s.neighbors.solo ? 'solo' : '1');
   if (!s.labels) q.set('labels', '0');
   return '?' + q.toString().replace(/%2C/g, ',');
 }

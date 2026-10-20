@@ -215,6 +215,7 @@ function drawSlice(size, position, rotation, opacity, color){
 	if (params.showAtoms) names.push('Atoms')
 	if (params.showTetrahedrals) names.push('Tetrahedrals')
 	if (params.showOctahedrals) names.push('Octahedrals')
+	if (params.showTriangulars) names.push('Triangulars')
 	params.spheres.forEach(function(m,i){ 
 		if (names.indexOf(m.name) != -1){
 			//this is an interesting package, but doesn't seem to work well enough for our purposes

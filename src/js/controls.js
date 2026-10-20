@@ -216,6 +216,13 @@ function setupControls(parent, vHeight, controlsWidth, m, b, pad){
 			.classed('buttonClickedControls', params.showTetrahedrals)
 			.on('click', function(){checkAtoms('showTetrahedrals', 'Tetrahedrals', 'tetrahedralButton')})
 	}
+
+	if (params.mol == 'FCC'){
+		createButton(additional, 'triangularButton',controlsWidth - 20 - 4, sz, bh + 6.*sz + 5.*m, m ,'Triangular Off')
+		d3.select('#triangularButton')
+			.classed('buttonClickedControls', params.showTriangulars)
+			.on('click', function(){checkAtoms('showTriangulars', 'Triangulars', 'triangularButton')})
+	}
 }
 
 function checkControlsText(id, value){

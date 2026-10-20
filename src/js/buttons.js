@@ -12,20 +12,23 @@ function showInterstitials(show, calledFromSlice=false){
 	//turns on/off the interstitials
 	params.showOctahedrals *= show;
 	params.showTetrahedrals *= show;
+	params.showTriangulars *= show;
 	params.spheres.forEach(function(m){
 		if (m.name == "Octahedrals") m.material.visible = params.showOctahedrals;
 		if (m.name == "Tetrahedrals") m.material.visible = params.showTetrahedrals;
+		if (m.name == "Triangulars") m.material.visible = params.showTriangulars;
 	})
 
 	checkAtoms('showOctahedrals', 'Octahedrals', 'octahedralButton', false, calledFromSlice);
 	if (params.mol != "SC") checkAtoms('showTetrahedrals', 'Tetrahedrals', 'tetrahedralButton', false, calledFromSlice);
+	if (params.mol == "FCC") checkAtoms('showTriangulars', 'Triangulars', 'triangularButton', false, calledFromSlice);
 
 }
 
 function showSpheres(show){
 	//turns on/off the spheres, but not the interstitial sites
 	params.spheres.forEach(function(m){
-		if (m.name != "Octahedrals" && m.name != "Tetrahedrals") m.material.visible = show;
+		if (m.name != "Octahedrals" && m.name != "Tetrahedrals" && m.name != "Triangulars") m.material.visible = show;
 	})
 	//also do this for the mirrored spheres
 	params.scene.traverse(function(child) {
@@ -414,7 +417,18 @@ function setupButtons(vHeight, vWidth, controlsWidth, m, b){
 			d3.select('#coordinationButton').append('label')
 				.attr('for','coordinationRadioTetrahedral')
 				.style('font-size','10pt')
-				.html('T')
+				.html(params.mol == 'FCC' ? 'T &nbsp;&nbsp;&nbsp;' : 'T')
+			if (params.mol == 'FCC'){
+				d3.select('#coordinationButton').append('input')
+					.attr('type','radio')
+					.attr('name', 'coordinationRadio')
+					.attr('id', 'coordinationRadioTriangular')
+					.attr('value', 'coordinationTriangulars')
+				d3.select('#coordinationButton').append('label')
+					.attr('for','coordinationRadioTriangular')
+					.style('font-size','10pt')
+					.html('Tr')
+			}
 		}
 	}
 	d3.select('#coordinationButton').selectAll('input')

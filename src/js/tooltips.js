@@ -38,7 +38,7 @@ function getClickedMesh(pageX, pageY, meshArray=params.spheres){
 	meshArray.forEach(function(p,i){
 		var useIt = false
 		if (p.name.includes("Atom")) useIt = true
-		if (params.keyboard.pressed("space") && (p.name.includes("Octahedrals") || p.name.includes("Tetrahedrals")) ) useIt = true
+		if (params.keyboard.pressed("space") && (p.name.includes("Octahedrals") || p.name.includes("Tetrahedrals") || p.name.includes("Triangulars")) ) useIt = true
 		if (useIt){
 			pos = screenXY(p)
 			var tdist = mpos.distanceTo(pos); //need to add on depth?
@@ -74,11 +74,12 @@ function highlightSphere(show, loc, meshArray=params.spheres){
 	var color = params.sphereColor;
 	if (name == "Octahedrals") color = params.octahedralColor;
 	if (name == "Tetrahedrals") color = params.tetrahedralColor;
+	if (name == "Triangulars") color = params.triangularColor;
 	var boxName = "sphereBox"+loc;
 	if (show){
 		color = params.highlightColor;
 		var test = params.scene.getObjectByName(boxName);
-		if (name == "Octahedrals" || name == "Tetrahedrals") meshArray[loc].material.visible = true;
+		if (name == "Octahedrals" || name == "Tetrahedrals" || name == "Triangulars") meshArray[loc].material.visible = true;
 		if (test == null){
 			var box = new THREE.Box3().setFromObject( meshArray[loc] );
 			var helper = new THREE.Box3Helper( box, params.highlightColor );
@@ -92,6 +93,7 @@ function highlightSphere(show, loc, meshArray=params.spheres){
 		showTooltips();	//show the current tooltips and redraw related mesh		
 		if (name == "Octahedrals") meshArray[loc].material.visible = params.showOctahedrals;
 		if (name == "Tetrahedrals") meshArray[loc].material.visible = params.showTetrahedrals;
+		if (name == "Triangulars") meshArray[loc].material.visible = params.showTriangulars;
 	}
 
 	//set the sphere color

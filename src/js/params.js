@@ -49,6 +49,9 @@ function defineParams(mol, color){
 		this.showOctahedrals = false;
 		this.showTetrahedrals = false;
 
+		this.triangularColor = 0x00BFFF; //deep sky blue (FCC only)
+		this.showTriangulars = false;
+
 		//for slice
 		this.doSliceUpdate = false; //will be checked every frame
 		this.sliceColor = 0xAFEEEE;

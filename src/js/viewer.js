@@ -74,6 +74,7 @@ function drawScene(mol){
 	//draw the interstitial sites
 	if (mol != 'HCP') drawOctahedral();
 	if (mol != 'SC' && mol != 'HCP') drawTetrahedral();
+	if (mol == 'FCC') drawTriangular();
 
 	//draw the slice view (updateSlice calls drawSlice -- written this way to facilitate dynamic updating of slice mesh)
 	updateSlice(params.slicePlanePosition, params.slicePlaneRotation);

@@ -113,6 +113,52 @@ function drawTetrahedral(){
 	})
 }
 
+function drawTriangular(){
+	//interstitial triangular sites, touch 3 atoms in a close-packed {111} plane
+	//every face of every tetrahedral site is a triangular site (8 tetrahedra x 4 faces = 32, all inside the unit cell)
+
+	var radius = params.size*Math.sqrt(2)/4.*(2./Math.sqrt(3) - 1.); //r/R = 0.155
+
+	//FCC atom positions (corners and face centers)
+	var atoms = [];
+	[0, 0.5, 1].forEach(function(x){
+		[0, 0.5, 1].forEach(function(y){
+			[0, 0.5, 1].forEach(function(z){
+				if ((2*(x + y + z)) % 2 == 0) atoms.push(new THREE.Vector3(x*params.size, y*params.size, z*params.size));
+			});
+		});
+	});
+
+	//for each tetrahedral site, find its 4 atoms and place a site at the center of each triangular face
+	[0.25, 0.75].forEach(function(x){
+		[0.25, 0.75].forEach(function(y){
+			[0.25, 0.75].forEach(function(z){
+				var tet = new THREE.Vector3(x*params.size, y*params.size, z*params.size);
+				var neighbors = atoms.filter(function(a){ return a.distanceTo(tet) < 0.45*params.size; }); //nearest atoms are at sqrt(3)/4 a
+				for (var i = 0; i < neighbors.length; i++){
+					var p = new THREE.Vector3(0, 0, 0);
+					neighbors.forEach(function(a, j){ if (j != i) p.add(a); });
+					p.divideScalar(3.);
+					var mesh = drawSphere(radius, params.sphereSegments, params.sphereSegments, params.hardOpacity, params.triangularColor, p, params.showTriangulars, 'Triangulars');
+					params.spheres.push(mesh);
+				}
+			})
+		})
+	})
+}
+
+function drawBond(p0, p1, radius, type){
+	//draw a cylinder connecting two points (used in the coordination view)
+
+	var direction = p1.clone().sub(p0);
+	var position = p0.clone().add(p1).divideScalar(2.);
+	var quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
+	var rotation = new THREE.Euler().setFromQuaternion(quaternion);
+	var mesh = drawCylinder(radius, direction.length(), params.cylinderRadialSegments, params.cylinderHeightSegments, params.cylinderColor, position, rotation);
+	mesh.type = type;
+	params.coordination.push(mesh);
+}
+
 function drawCoordination(){
 	//this is the coordination view.  
 
@@ -325,6 +371,30 @@ function drawCoordination(){
 		var mesh = drawCylinder(radius/4., allH[i], params.cylinderRadialSegments, params.cylinderHeightSegments, params.cylinderColor, allP[i], allR[i]);
 		mesh.type = "coordinationTetrahedrals";
 		params.coordination.push(mesh);
+	});
+
+
+	///////////////// coordinationTriangulars
+	//Triangular site (1/3-1/3-1/3) is coordinate with 3 atoms in the (111) plane at:
+	//0.5-0.5-0, 0.5-0-0.5, 0-0.5-0.5
+
+	//center
+	p0 = new THREE.Vector3(params.size/3.,	params.size/3.,	params.size/3.);
+	var mesh = drawSphere(radius, params.sphereSegments, params.sphereSegments, params.hardOpacity, params.triangularColor, p0, false, 'coordinationSphere');
+	mesh.type = "coordinationTriangulars";
+	params.coordination.push(mesh);
+
+	//spheres
+	var p1 = new THREE.Vector3(params.size/2., params.size/2., 0);
+	var p2 = new THREE.Vector3(params.size/2., 0,              params.size/2.);
+	var p3 = new THREE.Vector3(0,              params.size/2., params.size/2.);
+
+	var allP = [p1,p2,p3]
+	allP.forEach(function(p){
+		var mesh = drawSphere(radius, params.sphereSegments, params.sphereSegments, params.hardOpacity, params.sphereColor, p, false, 'coordinationSphere');
+		mesh.type = "coordinationTriangulars";
+		params.coordination.push(mesh);
+		drawBond(p0, p, radius/4., "coordinationTriangulars");
 	});
 
 }

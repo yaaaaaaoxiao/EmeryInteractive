@@ -141,6 +141,56 @@ export function siteInfo(structure: Structure, site: SiteType): SiteInfo {
   };
 }
 
+export interface Shell {
+  count: number;
+  distance: number;
+}
+
+// the surrounding atoms grouped by distance, e.g. the distorted BCC octahedron: 2 at 0.5a + 4 at 0.707a
+export function neighborShells(structure: Structure, site: SiteType): Shell[] {
+  const { positions } = nearestAtoms(structure, site.representative, site.coordination);
+  const shells: Shell[] = [];
+  for (const p of positions) {
+    const d = dist(p, site.representative);
+    const shell = shells.find((s) => Math.abs(s.distance - d) < 1e-4);
+    if (shell) shell.count++;
+    else shells.push({ count: 1, distance: d });
+  }
+  return shells.sort((a, b) => a.distance - b.distance);
+}
+
+export interface DoorwaySide {
+  type: SiteType;
+  position: Vec3;
+  // from the doorway to that site, in units of a
+  distance: number;
+  // the largest sphere that fits in that site
+  ratio: number;
+}
+
+// for a doorway (saddle point): the nearest site of each kind it connects. Null for a pocket.
+export function doorwaySides(structure: Structure, site: SiteType): DoorwaySide[] | null {
+  if (!site.doorwayBetween) return null;
+  const used = new Set<string>();
+  return site.doorwayBetween.map((id) => {
+    const type = structure.sites.find((t) => t.id === id);
+    if (!type) throw new Error(`${structure.id}: unknown site ${id}`);
+    // every site of that kind near the doorway, closest first (skipping one already used on the other side)
+    const candidates: Vec3[] = [];
+    for (const p of orbit(type.representative, structure.centering)) {
+      for (const offset of [-1, 0, 1]) {
+        for (const o2 of [-1, 0, 1]) {
+          for (const o3 of [-1, 0, 1]) candidates.push([p[0] + offset, p[1] + o2, p[2] + o3]);
+        }
+      }
+    }
+    candidates.sort((a, b) => dist(a, site.representative) - dist(b, site.representative));
+    const nearest = candidates.find((p) => !used.has(objectKey(id, p))) as Vec3;
+    used.add(objectKey(id, nearest));
+    return { type, position: nearest, distance: dist(nearest, site.representative), ratio: siteInfo(structure, type).ratio };
+  });
+}
+
 //////////////// objects in the block
 
 export type PositionGroup = 'corner' | 'edge' | 'face' | 'interior';

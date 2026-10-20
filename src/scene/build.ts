@@ -6,6 +6,7 @@ import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { atomObjects, type CrystalObject, fraction, objectKey, siteObjects } from '../crystal/lattice';
 import { STRUCTURES, type Vec3 } from '../crystal/structures';
 import { neighborsOf, parseKey, type State, unitNormal } from '../state';
+import { direction } from '../ui/notation';
 import { LOOKS, type Look, makeMaterial } from './look';
 
 export const COLORS = {
@@ -418,7 +419,7 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
         o.renderOrder = 10;
       });
       group.add(arrow);
-      const l = label(`[${uvw.join(' ')}]`, 'scene-label direction');
+      const l = label(direction(uvw), 'scene-label direction');
       l.position.copy(v3(from).add(dir.multiplyScalar(0.5)));
       group.add(l);
     }

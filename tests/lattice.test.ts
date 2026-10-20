@@ -93,3 +93,12 @@ describe('position groups', () => {
     expect(positionGroup([0.5, 0.5, 0.5])).toBe('interior');
   });
 });
+
+describe('index notation', () => {
+  it('writes negative indices with a bar over the digits', async () => {
+    const { direction, plane } = await import('../src/ui/notation');
+    expect(direction([-1, 1, 0])).toBe('[1\u0305 1 0]');
+    expect(plane([1, 1, -1])).toBe('(1 1 1\u0305)');
+    expect(plane([-12, 0, 3])).toBe('(1\u03052\u0305 0 3)');
+  });
+});

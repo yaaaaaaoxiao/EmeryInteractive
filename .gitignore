@@ -14,3 +14,8 @@ Thumbs.db
 *ipynb_checkpoints*
 __pycache__
 *.pyc
+
+# node / build #
+###################
+node_modules
+dist

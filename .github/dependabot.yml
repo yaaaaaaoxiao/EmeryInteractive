@@ -1,0 +1,27 @@
+# Keeps the GitHub Actions and npm packages up to date with at most two pull requests a month.
+# Every pull request runs the checks in .github/workflows/ci.yml; nothing merges on its own.
+version: 2
+updates:
+  # GitHub Actions: one grouped pull request a month (including new major versions, which is how these
+  # actions release Node.js runtime updates like the Node 20 → 24 move)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # npm packages: minor and patch updates only, grouped into one pull request a month.
+  # Major versions (e.g. a new three.js) can change APIs, so those are done by hand.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      npm:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]

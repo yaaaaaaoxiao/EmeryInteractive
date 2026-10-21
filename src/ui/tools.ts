@@ -46,6 +46,8 @@ export class ToolBar {
   private toolButtons = new Map<Tool, HTMLButtonElement>();
   private undoButton: HTMLButtonElement;
   private redoButton: HTMLButtonElement;
+  // clicks add to the selection, like holding Shift (for touch screens, which have no Shift key). Not saved in the link.
+  addToSelection = false;
 
   constructor(
     bar: HTMLElement,
@@ -111,8 +113,23 @@ export class ToolBar {
   private buildOptions(state: State): HTMLElement[] {
     const { store } = this;
     const note = (text: string) => h('span', { class: 'hint' }, text);
+    const addToSelection = () =>
+      h(
+        'label',
+        { class: 'check', title: 'Each click adds to the selection or removes from it, like holding Shift' },
+        h('input', {
+          type: 'checkbox',
+          checked: this.addToSelection,
+          onchange: (e: Event) => {
+            this.addToSelection = (e.target as HTMLInputElement).checked;
+          },
+        }),
+        'Add to selection',
+      );
 
-    if (state.tool === 'select') return [note('Select 2 objects to get a direction, 3 for a plane, 4 or more for a polyhedron.')];
+    if (state.tool === 'select') {
+      return [addToSelection(), note('Select 2 objects to get a direction, 3 for a plane, 4 or more for a polyhedron.')];
+    }
 
     if (state.tool === 'neighbors') {
       const solo = this.bind(
@@ -217,6 +234,7 @@ export class ToolBar {
     const parts: HTMLElement[] = [
       h('label', { class: 'row' }, h('span', { class: 'label' }, 'Plane'), select),
       h('span', { class: 'row' }, h('span', { class: 'label' }, 'New (h k l)'), ...hkl, add),
+      addToSelection(),
     ];
     const active = activePlane(state);
     if (active) {

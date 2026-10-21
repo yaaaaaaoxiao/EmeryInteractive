@@ -1,17 +1,18 @@
 // Right panel ("Inspector"): what you clicked with actions you can take on it, the directions, planes and points
 // you've added, and the structure's facts with its interstitial-site table.
 
-import katex from 'katex';
-import { dist, doorwaySides, fraction, nearestAtoms, neighborShells, siteInfo } from '../crystal/lattice';
+import formulas from 'virtual:formulas';
+import { dist, doorwaySides, fraction, neighborShells, siteInfo } from '../crystal/lattice';
 import { type SiteType, STRUCTURES, type Structure, type Vec3 } from '../crystal/structures';
 import type { Viewer } from '../scene/viewer';
 import { type Construction, neighborsOf, parseKey, type State, type Store, selectionDirection, selectionPlane } from '../state';
 import { h, swatch } from './dom';
 import { direction, plane } from './notation';
 
-const tex = (s: string, display = false) => {
+// a formula rendered when the site was built (see vite-plugins/formulas.ts)
+const formula = (html: string) => {
   const span = h('span');
-  katex.render(s, span, { displayMode: display, throwOnError: false });
+  span.innerHTML = html;
   return span;
 };
 
@@ -117,7 +118,7 @@ export class Inspector {
             'p',
             {},
             'Largest sphere that fits here: ',
-            tex(`r/R = ${fit.ratio.toFixed(3)}`),
+            h('span', { class: 'ratio' }, h('i', {}, 'r'), '/', h('i', {}, 'R'), ` = ${fit.ratio.toFixed(3)}`),
             touching < n.positions.length ? ` (limited by the ${touching} closest atoms)` : '',
           ),
         );
@@ -185,17 +186,19 @@ export class Inspector {
           ...items.map((x) => h('li', {}, `${name(x.kind)} `, h('span', { class: 'mono' }, coords(x.pos)))),
         ),
       );
-      if (items.length === 1) {
-        const key = state.selection[0];
-        card.append(
-          h(
-            'div',
-            { class: 'actions' },
-            button('Show neighbors', () => store.set({ tool: 'neighbors', target: key })),
-            items[0].kind === 'atom' ? button('Hide this atom', () => store.setHidden([...state.hidden, key])) : null,
-          ),
-        );
-      }
+      const key = state.selection[0];
+      card.append(
+        h(
+          'div',
+          { class: 'actions' },
+          items.length === 1 ? button('Show neighbors', () => store.set({ tool: 'neighbors', target: key })) : null,
+          items.length === 1 && items[0].kind === 'atom'
+            ? button('Hide this atom', () => store.setHidden([...state.hidden, key]))
+            : null,
+          // (with "Add to selection" on, clicking empty space keeps the selection)
+          button('Clear selection', () => store.set({ selection: [] })),
+        ),
+      );
       const d = selectionDirection(state);
       if (d) {
         card.append(
@@ -332,6 +335,7 @@ export class Inspector {
   private facts(state: State): HTMLElement {
     const s = STRUCTURES[state.structure];
     const { info } = s;
+    const f = formulas.structures[state.structure];
     const fact = (title: string, body: Node) => h('div', { class: 'fact' }, h('div', { class: 'fact-title' }, title), body);
 
     // interstitial sites (all numbers computed from the geometry)
@@ -372,28 +376,15 @@ export class Inspector {
       'details',
       { class: 'facts', open: this.factsOpen },
       h('summary', {}, s.name),
-      fact('Atomic positions', tex(info.positions)),
+      fact('Atomic positions', formula(f.positions)),
       fact(
         `Atoms touch along the ${info.touchAlong}`,
-        h(
-          'div',
-          {},
-          tex(info.touchEquation),
-          h('br'),
-          'Coordination number = ',
-          tex(`\\color{maroon}{${nearestAtoms(s, [0, 0, 0]).positions.length}}`),
-        ),
+        h('div', {}, formula(f.touchEquation), h('br'), 'Coordination number = ', formula(f.coordination)),
       ),
-      fact('Atoms per unit cell', tex(info.atomsPerCell, true)),
-      fact('Lattice parameter', tex(info.latticeParameter, true)),
-      fact('Atomic packing factor', tex(info.apf, true)),
-      fact(
-        'Density',
-        tex(
-          '\\rho = \\frac{\\color{green}{n}\\,\\color{maroon}{A}}{\\color{darkcyan}{V_\\mathrm{u.c.}}\\,\\color{purple}{N_\\mathrm{A}}}',
-          true,
-        ),
-      ),
+      fact('Atoms per unit cell', formula(f.atomsPerCell)),
+      fact('Lattice parameter', formula(f.latticeParameter)),
+      fact('Atomic packing factor', formula(f.apf)),
+      fact('Density', formula(formulas.density)),
       fact(
         'Interstitial sites',
         h(

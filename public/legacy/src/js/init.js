@@ -77,18 +77,6 @@ function timeStamp() {
 }
 
 
-//for IP addresses for google analytics
-//https://ourcodeworld.com/articles/read/257/how-to-get-the-client-ip-address-with-javascript-only
-function getIP(json) {
-	params.userIP = json.ip;
-	console.log("IP address : ", params.userIP)
-}
-
-//Google Analytics https://developers.google.com/analytics/devguides/collection/analyticsjs/
-(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
-
-ga('create', 'UA-138410157-1', 'auto');
-ga('send', 'pageview');
+// The original site sent usage events and visitors' IP addresses to Google Analytics. CrystalView doesn't track
+// anyone, so ga() is a no-op that the existing ga('send', …) calls throughout the code can still call.
+function ga() {}

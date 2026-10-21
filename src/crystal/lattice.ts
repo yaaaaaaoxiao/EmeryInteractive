@@ -1,6 +1,6 @@
 // Generates every atom and interstitial site from the structure data, and computes neighbours.
 
-import type { SiteId, SiteType, Structure, Vec3 } from './structures';
+import type { SiteId, SiteType, Structure, Vec3 } from './structures.ts';
 
 const EPS = 1e-6;
 

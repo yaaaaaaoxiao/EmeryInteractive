@@ -13,7 +13,7 @@ const $ = (id: string) => document.getElementById(id)!;
 
 // the graphics choice is remembered per device; everything else comes from the link
 const store = new Store({ ...stateFromURL(location.search), graphics: savedGraphics() });
-const viewer = new Viewer($('viewer'), (key, additive) => store.clickObject(key, additive));
+const viewer = new Viewer($('viewer'), (key, additive) => store.clickObject(key, additive || tools.addToSelection));
 const left = new LeftPanel($('left'), store, viewer);
 const tools = new ToolBar($('toolbar'), $('tool-options'), $('status'), store);
 const inspector = new Inspector($('inspector'), store, viewer);
@@ -43,8 +43,23 @@ function render(state: State, previous: State | null): void {
   tools.render(state);
   inspector.render(state);
   tabs.forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.structure === state.structure)));
-  document.title = `${STRUCTURES[state.structure].shortName} · Crystal Structure Viewer`;
-  history.replaceState(null, '', stateToURL(state));
+  document.title = `${STRUCTURES[state.structure].shortName} · CrystalView`;
+  scheduleURL();
+}
+
+// The address always describes the current setup. Safari allows at most 100 address rewrites per 10 seconds,
+// which dragging a slider would exceed, so write it at most every 300 ms, always with the latest setup.
+let urlTimer: number | undefined;
+function scheduleURL(): void {
+  if (urlTimer !== undefined) return;
+  urlTimer = window.setTimeout(() => {
+    urlTimer = undefined;
+    try {
+      history.replaceState(null, '', stateToURL(store.state));
+    } catch {
+      // refused by the browser's rate limit: the next change writes it
+    }
+  }, 300);
 }
 
 store.subscribe(render);

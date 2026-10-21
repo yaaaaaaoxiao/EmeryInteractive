@@ -299,3 +299,41 @@ test('the neighbors card follows the style', async ({ page }) => {
   await page.getByRole('button', { name: 'Sparse' }).click();
   await expect(card).not.toContainText('see-through');
 });
+
+test('"Add to selection" picks several objects without Shift, for touch screens', async ({ page }) => {
+  await open(page);
+  const card = inspector(page).locator('.card.selection');
+  await page.locator('#tool-options').getByLabel('Add to selection').check();
+  await clickAt(page, [1, 0.5, 0.5]);
+  await clickAt(page, [0.5, 1, 0.5]);
+  await expect(card).toContainText('Selected (2)');
+  // clicking empty space keeps the selection while adding; the card's button clears it
+  await page.mouse.click(30, 870);
+  await expect(card).toContainText('Selected (2)');
+  await card.getByRole('button', { name: 'Clear selection' }).click();
+  await expect(card).toHaveCount(0);
+  // the choice is kept when the tool's options are rebuilt
+  await page.keyboard.press('p');
+  await expect(page.locator('#tool-options').getByLabel('Add to selection')).toBeChecked();
+});
+
+test('dragging a slider for a long time keeps the address up to date (Safari limits address changes)', async ({ page }) => {
+  const errors = await open(page);
+  // 150 updates at once: more than Safari's 100 address changes per 10 s, which used to throw
+  await page.evaluate(() => {
+    const { store } = window as unknown as { store: { preview(p: object): void; commitPreview(): void } };
+    for (let i = 0; i < 150; i++) store.preview({ opacity: 0.2 + (i % 80) / 100 });
+    store.preview({ opacity: 0.5 });
+    store.commitPreview();
+  });
+  await expect(page).toHaveURL(/op=0\.5/);
+  expect(errors).toEqual([]);
+});
+
+test('the facts panel shows its formulas', async ({ page }) => {
+  await open(page);
+  const facts = inspector(page).locator('.facts');
+  await expect(facts.locator('.katex')).toHaveCount(7);
+  await expect(facts.locator('.katex-display')).toHaveCount(4);
+  await expect(facts).toContainText('Atomic packing factor');
+});

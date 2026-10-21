@@ -3,9 +3,9 @@
 import * as THREE from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import { atomObjects, type CrystalObject, fraction, objectKey, siteObjects } from '../crystal/lattice';
+import { atomObjects, type CrystalObject, dist, fraction, objectKey, siteObjects } from '../crystal/lattice';
 import { STRUCTURES, type Vec3 } from '../crystal/structures';
-import { neighborsOf, parseKey, type State, unitNormal } from '../state';
+import { activePlane, isSlicing, neighborsOf, type PlaneConstruction, parseKey, type State, unitNormal } from '../state';
 import { direction } from '../ui/notation';
 import { LOOKS, type Look, makeMaterial } from './look';
 
@@ -21,7 +21,6 @@ export const COLORS = {
 const SPARSE_SCALE = 0.25;
 const SPARSE_MIN_RADIUS = 0.03; // keeps the smallest sites visible in the sparse style
 const GHOST_OPACITY = 0.1;
-const FADED_OPACITY = 0.07;
 // sites stay visible in the neighbours tool so they can be found and clicked
 const FADED_SITE_OPACITY = 0.45;
 const SITE_OPACITY = 0.95;
@@ -80,6 +79,24 @@ function outlineGeometry(radius: number): THREE.SphereGeometry {
   return g;
 }
 
+// darkens a sphere toward its edge, so touching neighbours stay distinct. It's part of the sphere's own surface
+// (not a separate shape behind it), so it can't cover the sphere when the sphere is see-through; the edge also stays
+// opaque then, so a see-through neighbour keeps a crisp outline.
+function withRim<T extends THREE.MeshStandardMaterial>(m: T): T {
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <dithering_fragment>',
+      `#include <dithering_fragment>
+      float rimEdge = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
+      float rim = smoothstep(0.62, 0.93, rimEdge);
+      gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.11, 0.13, 0.16), rim);
+      gl_FragColor.a = max(gl_FragColor.a, rim);`,
+    );
+  };
+  m.customProgramCacheKey = () => 'neighbor-rim';
+  return m;
+}
+
 // the look of the scene being built (set at the start of buildScene, used by material())
 let look: Look = LOOKS.quality;
 
@@ -107,11 +124,10 @@ function boxPlanes(repeat: Vec3): THREE.Plane[] {
   return planes;
 }
 
-// the slice plane, keeping the side the normal points to (or the other side if flipped)
-function slicePlane(state: State): THREE.Plane {
-  const n = v3(unitNormal(state.plane.hkl));
-  const plane = new THREE.Plane(n, -state.plane.offset);
-  return state.slice.flip ? plane.negate() : plane;
+// a plane construction as a three.js plane, keeping the side its normal points to (or the other side if flipped)
+function toPlane(p: PlaneConstruction, flip = false): THREE.Plane {
+  const plane = new THREE.Plane(v3(unitNormal(p.hkl)), -p.offset);
+  return flip ? plane.negate() : plane;
 }
 
 // a flat disk filling the cut where `plane` crosses a sphere (null if it doesn't)
@@ -233,38 +249,43 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
     if (state.showSites[site.id]) objects.push(...siteObjects(structure, site, repeat));
   }
 
-  const section = state.slice.on && state.slice.mode === 'section';
-  const cutaway = state.slice.on && state.slice.mode === 'cutaway';
+  const active = activePlane(state);
+  const slicing = isSlicing(state);
+  const section = slicing && state.slice === 'section';
+  const cutaway = slicing && state.slice === 'cutaway';
   const box = state.clipToCell ? boxPlanes(repeat) : [];
-  const slice = slicePlane(state);
+  // (only used while slicing, when there is an active plane)
+  const slice = active ? toPlane(active, state.flip) : new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+  const neighborsTool = state.tool === 'neighbors' && state.target !== null;
+  const hideTool = state.tool === 'hide';
   // every plane that cuts the spheres
   const cuts = [...box, ...(cutaway ? [slice] : [])];
   const selected = new Set(state.selection);
   // neighbours tool in solo: only the target and its surrounding atoms are drawn
-  const solo = state.neighbors.on && state.neighbors.solo;
+  const solo = neighborsTool && state.solo;
   const hidden = new Set(state.hidden);
 
   //////// atoms and sites
   for (const obj of solo ? [] : objects) {
     const r = displayRadius(state, obj.radius);
     const isAtom = obj.kind === 'atom';
-    const faded = state.neighbors.on;
+    const faded = neighborsTool;
     const color = selected.has(obj.key) ? COLORS.highlight : obj.color;
-    const fadedOpacity = isAtom ? FADED_OPACITY : FADED_SITE_OPACITY;
+    const fadedOpacity = isAtom ? state.othersOpacity : FADED_SITE_OPACITY;
     const opacity = faded ? fadedOpacity : isAtom ? state.opacity : SITE_OPACITY;
     const pick: PickTarget = { key: obj.key, isSite: !isAtom, center: obj.pos, radius: r };
 
     const tag = (m: THREE.Object3D) => {
       m.userData.pick = pick;
       // with the hide tool only atoms are clickable, so sites in front of them don't get in the way
-      if (!(state.hideTool && !isAtom)) pickables.push(m);
+      if (!(hideTool && !isAtom)) pickables.push(m);
       group.add(m);
     };
 
     if (isAtom && hidden.has(obj.key)) {
       // a hidden atom leaves a faint outline (none in the section or the neighbors tool);
       // with the hide tool, clicking the outline shows the atom again
-      if (!section && !state.neighbors.on) {
+      if (!section && !neighborsTool) {
         // a darker wire grid over a very faint fill, so the gap reads as "an atom was here"
         const wireColor = new THREE.Color(obj.color).multiplyScalar(0.6);
         const outline = new THREE.Mesh(
@@ -294,7 +315,7 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
         for (const m of [outline, fill]) {
           m.position.copy(v3(obj.pos));
           m.userData.pick = pick;
-          if (state.hideTool) pickables.push(m);
+          if (hideTool) pickables.push(m);
           group.add(m);
         }
       }
@@ -330,13 +351,12 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
     }
   }
 
-  //////// slice and plane
-  if (state.slice.on) {
-    group.add(planeSheet(slice, repeat, COLORS.slice, section ? 0.55 : 0.18));
-  } else if (state.plane.show) {
-    const plane = new THREE.Plane(v3(unitNormal(state.plane.hkl)), -state.plane.offset);
-    // drawn on top so it stays visible inside a hard-sphere model
-    const sheet = planeSheet(plane, repeat, COLORS.highlight, 0.3);
+  //////// planes: the one being sliced through, and every other visible plane
+  if (slicing) group.add(planeSheet(slice, repeat, COLORS.slice, section ? 0.55 : 0.18));
+  for (const c of state.constructions) {
+    if (c.kind !== 'plane' || !c.visible || (slicing && c.id === state.activePlane)) continue;
+    // drawn on top so it stays visible inside a hard-sphere model; the active plane is darker
+    const sheet = planeSheet(toPlane(c), repeat, COLORS.highlight, c.id === state.activePlane ? 0.35 : 0.2);
     sheet.material.depthTest = false;
     sheet.renderOrder = 5;
     group.add(sheet);
@@ -347,24 +367,28 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
     for (const obj of objects) {
       if (obj.kind === 'atom') continue;
       const n = neighborsOf(state.structure, obj.key);
-      group.add(polyhedron(n.positions, obj.color, state.neighbors.on ? 0.04 : 0.15));
+      group.add(polyhedron(n.positions, obj.color, neighborsTool ? 0.04 : 0.15));
     }
   }
 
   //////// neighbours tool
-  if (state.neighbors.on && state.neighbors.target) {
-    const n = neighborsOf(state.structure, state.neighbors.target);
+  if (neighborsTool && state.target) {
+    const n = neighborsOf(state.structure, state.target);
     const targetRadius = n.site ? n.distance - structure.atomRadius : structure.atomRadius;
     const targetColor = n.site ? n.site.color : structure.color;
     const center = new THREE.Mesh(sphereGeometry(displayRadius(state, targetRadius)), material(targetColor, 1));
     center.position.copy(v3(n.pos));
     group.add(center);
 
-    const neighborOpacity = state.style === 'hard' ? 0.35 : 1;
     const neighborRadius = displayRadius(state, structure.atomRadius);
+    // atoms farther than the closest ones (the BCC octahedron: 2 close + 4 farther) get a lighter shade
+    const farColor = new THREE.Color(structure.color).lerp(new THREE.Color(0xffffff), 0.5).getHex();
     for (const p of n.positions) {
-      const m = new THREE.Mesh(sphereGeometry(neighborRadius), material(structure.color, neighborOpacity));
+      const far = dist(p, n.pos) > n.distance + 1e-4;
+      const m = new THREE.Mesh(sphereGeometry(neighborRadius), withRim(material(far ? farColor : structure.color, 1)));
       m.position.copy(v3(p));
+      // hard spheres hide the centre, so the viewer makes the ones in front of it see-through (see Viewer.updateXray)
+      if (state.style === 'hard') m.userData.xray = { center: n.pos };
       group.add(m);
       // in solo these are the only atoms on screen, so clicking one moves to it
       if (solo) {
@@ -386,7 +410,7 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
       ),
     );
   }
-  if (state.labels) {
+  if (state.labels && !neighborsTool) {
     for (const key of state.selection) {
       const { pos } = parseKey(key);
       const l = label(pos.map(fraction).join('  '), 'scene-label selected');
@@ -405,33 +429,19 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
     }
   }
 
-  //////// direction arrow and lattice position marker
-  if (state.direction) {
-    const { from, vector, uvw } = state.direction;
-    const dir = v3(vector);
-    const length = dir.length();
-    if (length > 1e-6) {
-      const arrow = new THREE.ArrowHelper(dir.clone().normalize(), v3(from), length, COLORS.highlight, 0.1, 0.06);
-      // always on top, so it isn't hidden inside the atoms
-      arrow.traverse((o) => {
-        const m = (o as THREE.Mesh).material as THREE.Material | undefined;
-        if (m) m.depthTest = false;
-        o.renderOrder = 10;
-      });
-      group.add(arrow);
-      const l = label(direction(uvw), 'scene-label direction');
-      l.position.copy(v3(from).add(dir.multiplyScalar(0.5)));
+  //////// directions and points
+  for (const c of state.constructions) {
+    if (!c.visible) continue;
+    if (c.kind === 'direction') group.add(directionArrow(c.from, c.vector, c.uvw));
+    if (c.kind === 'point') {
+      const m = new THREE.Mesh(sphereGeometry(0.04), material(0x000000, 1));
+      m.position.copy(v3(c.pos));
+      group.add(m);
+      const l = label(c.pos.map(fraction).join('  '));
+      l.position.copy(m.position);
+      l.center.set(-0.2, 1.2);
       group.add(l);
     }
-  }
-  if (state.marker) {
-    const m = new THREE.Mesh(sphereGeometry(0.04), material(0x000000, 1));
-    m.position.copy(v3(state.marker));
-    group.add(m);
-    const l = label(state.marker.map(fraction).join('  '));
-    l.position.copy(m.position);
-    l.center.set(-0.2, 1.2);
-    group.add(l);
   }
 
   //////// cell edges, axes and the lattice parameter
@@ -439,6 +449,25 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
   group.add(axes(repeat));
 
   return { group, pickables };
+}
+
+// an arrow along `vector` from `from`, drawn on top so it isn't hidden inside the atoms, with its [u v w]
+function directionArrow(from: Vec3, vector: Vec3, uvw: Vec3): THREE.Group {
+  const group = new THREE.Group();
+  const dir = v3(vector);
+  const length = dir.length();
+  if (length < 1e-6) return group;
+  const arrow = new THREE.ArrowHelper(dir.clone().normalize(), v3(from), length, COLORS.highlight, 0.1, 0.06);
+  arrow.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+    if (m) m.depthTest = false;
+    o.renderOrder = 10;
+  });
+  group.add(arrow);
+  const l = label(direction(uvw), 'scene-label direction');
+  l.position.copy(v3(from).add(dir.multiplyScalar(0.5)));
+  group.add(l);
+  return group;
 }
 
 function cellEdges(repeat: Vec3): THREE.Group {

@@ -13,6 +13,8 @@ const DEFAULT_VIEW = new THREE.Vector3(3.65, 1.95, 1.66).normalize();
 const SITE_TOLERANCE_PX = 12;
 // clicking again within this distance moves to the next object under the pointer
 const REPEAT_CLICK_PX = 6;
+// neighbours in front of the neighbors tool's centre fade to this, so you can see into the cage
+const XRAY_OPACITY = 0.18;
 
 export class Viewer {
   readonly renderer: THREE.WebGLRenderer;
@@ -31,6 +33,8 @@ export class Viewer {
   private animation: ((time: number) => boolean) | null = null;
   // draw only when something changed (camera, scene, size, animation); idle costs nothing
   private needsRender = true;
+  // neighbours that fade when in front of the neighbors tool's centre (collected once per scene, see show())
+  private xrayMeshes: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>[] = [];
   private blockSize: Vec3 = [1, 1, 1];
   private lastPick: { x: number; y: number; keys: string[]; index: number } | null = null;
   // in the neighbours tool, interstitial sites are picked before the atoms in front of them
@@ -61,7 +65,8 @@ export class Viewer {
     this.camera.up.set(0, 0, 1);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enablePan = false;
-    this.controls.enableDamping = true;
+    // no glide after letting go: the model stops exactly where you leave it
+    this.controls.enableDamping = false;
     this.controls.rotateSpeed = 0.6;
 
     // a click (not a drag) picks the object under the pointer
@@ -116,6 +121,10 @@ export class Viewer {
       this.lastPick = null;
     }
     this.scene.add(built.group);
+    this.xrayMeshes = [];
+    built.group.traverse((o) => {
+      if (o.userData.xray) this.xrayMeshes.push(o as THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>);
+    });
     this.requestRender();
     // so clicks right after a rebuild hit the new objects where they are
     this.scene.updateMatrixWorld();
@@ -300,15 +309,34 @@ export class Viewer {
     this.needsRender = true;
   }
 
+  // hard-sphere neighbours between the camera and the centre become see-through; those beside and behind it stay
+  // solid. Runs before every redraw, so it follows the camera as you rotate.
+  private updateXray(): void {
+    if (!this.xrayMeshes.length) return;
+    const forward = this.camera.getWorldDirection(new THREE.Vector3());
+    const depth = (p: THREE.Vector3) => p.clone().sub(this.camera.position).dot(forward);
+    for (const mesh of this.xrayMeshes) {
+      const { center } = mesh.userData.xray as { center: Vec3 };
+      // how far in front of the centre this atom is, in atom radii; blend over a range so nothing pops while rotating
+      const ahead = (depth(new THREE.Vector3(...center)) - depth(mesh.position)) / mesh.geometry.parameters.radius;
+      const opacity = 1 - (1 - XRAY_OPACITY) * THREE.MathUtils.smoothstep(ahead, 0.2, 1.2);
+      const m = mesh.material;
+      m.opacity = opacity;
+      m.transparent = opacity < 0.999;
+      m.depthWrite = opacity > 0.6;
+    }
+  }
+
   private frame(time: number): void {
     if (this.animation) {
       if (!this.animation(time)) this.animation = null;
       this.needsRender = true;
     }
-    // with damping the camera keeps gliding after a drag; update() fires 'change' while it moves
+    // update() fires 'change' when the camera moved (which requests a redraw)
     this.controls.update();
     if (!this.needsRender) return;
     this.needsRender = false;
+    this.updateXray();
     this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
   }

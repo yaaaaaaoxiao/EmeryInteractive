@@ -39,10 +39,10 @@ describe('scene depends only on the settings', () => {
     // the toggle sequence that used to leave the old site in the wrong state
     const s = new Store(defaultState());
     s.set({ clipToCell: false });
-    s.setNeighborsOn(true);
+    s.setTool('neighbors');
     s.set({ showAtoms: false });
     s.set({ showAtoms: true });
-    s.setNeighborsOn(false);
+    s.setTool('select');
 
     const fresh = { ...defaultState(), clipToCell: false };
     expect(summary(s.state)).toEqual(summary(fresh));
@@ -59,7 +59,8 @@ describe('what can be clicked', () => {
     const state: State = {
       ...defaultState(),
       showSites: { oct: true },
-      neighbors: { on: true, target: typicalAtom('fcc'), solo: false },
+      tool: 'neighbors',
+      target: typicalAtom('fcc'),
     };
     const keys = [...picked(state)];
     expect(keys.filter((k) => k.startsWith('atom:'))).toHaveLength(14);
@@ -77,7 +78,9 @@ describe('what can be clicked', () => {
     const state: State = {
       ...defaultState(),
       showSites: { oct: true, tet: true },
-      neighbors: { on: true, target: 'atom:0.5000,0.5000,0.0000', solo: true },
+      tool: 'neighbors',
+      target: 'atom:0.5000,0.5000,0.0000',
+      solo: true,
     };
     const keys = picked(state);
     expect(keys.size).toBe(12);
@@ -92,7 +95,12 @@ describe('what can be clicked', () => {
 
 describe('slice', () => {
   it('a (100) section at x = 1/2 in FCC cuts the 4 face-centred atoms', () => {
-    const state: State = { ...defaultState(), slice: { on: true, mode: 'section', flip: false } };
+    const state: State = {
+      ...defaultState(),
+      constructions: [{ id: 1, kind: 'plane', hkl: [1, 0, 0], offset: 0.5, visible: true }],
+      activePlane: 1,
+      slice: 'section',
+    };
     // corner atoms (R = 0.354a) don't reach x = 1/2
     expect(picked(state)).toEqual(
       new Set([
@@ -106,9 +114,11 @@ describe('slice', () => {
 
   it('turning the slice off restores the full model', () => {
     const s = new Store(defaultState());
+    s.addPlane([1, 1, 1]);
     const before = summary(s.state);
-    s.set({ slice: { on: true, mode: 'cutaway', flip: true } });
-    s.set({ slice: { on: false, mode: 'cutaway', flip: true } });
+    s.set({ slice: 'cutaway', flip: true });
+    expect(summary(s.state)).not.toEqual(before);
+    s.set({ slice: 'off' });
     expect(summary(s.state)).toEqual(before);
   });
 });
@@ -122,7 +132,7 @@ describe('hidden atoms', () => {
     expect(keys.has(hidden[0])).toBe(false);
     expect(keys.has('oct:0.5000,0.5000,0.5000')).toBe(true);
 
-    const withTool = picked({ ...state, hideTool: true });
+    const withTool = picked({ ...state, tool: 'hide' });
     expect(withTool.has(hidden[0])).toBe(true);
     // sites in front of atoms don't get in the way of hiding
     expect([...withTool].every((k) => k.startsWith('atom:'))).toBe(true);
@@ -139,8 +149,9 @@ describe('hidden atoms', () => {
 
     const section: State = {
       ...defaultState(),
-      slice: { on: true, mode: 'section', flip: false },
-      plane: { hkl: [1, 0, 0], offset: 1, show: false },
+      constructions: [{ id: 1, kind: 'plane', hkl: [1, 0, 0], offset: 1, visible: true }],
+      activePlane: 1,
+      slice: 'section',
     };
     expect(picked(section).has(hidden[0])).toBe(true);
     expect(picked({ ...section, hidden }).has(hidden[0])).toBe(false);
@@ -157,5 +168,21 @@ describe('graphics', () => {
   it('the default look is glossy; Performance mode uses the cheaper original material', () => {
     expect(materialTypes(defaultState())).toEqual(['MeshPhysicalMaterial']);
     expect(materialTypes({ ...defaultState(), graphics: 'performance' })).toEqual(['MeshStandardMaterial']);
+  });
+});
+
+describe('directions, planes and points', () => {
+  it('only visible ones are drawn, and a selection alone draws nothing extra', () => {
+    const count = (state: State) => summary(state).length;
+    const base = defaultState();
+    const selected = { ...base, selection: ['atom:0.0000,0.0000,0.0000', 'atom:1.0000,1.0000,0.0000'] };
+    // a selection only recolours the atoms; the direction appears once it's added
+    expect(count(selected)).toBe(count(base));
+    const withDirection: State = {
+      ...base,
+      constructions: [{ id: 1, kind: 'direction', uvw: [1, 1, 0], from: [0, 0, 0], vector: [1, 1, 0], visible: true }],
+    };
+    expect(count(withDirection)).toBeGreaterThan(count(base));
+    expect(count({ ...withDirection, constructions: [{ ...withDirection.constructions[0], visible: false }] })).toBe(count(base));
   });
 });

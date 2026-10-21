@@ -27,34 +27,39 @@
     </header>
 
     <main class="layout">
-      <aside id="controls" class="panel controls" aria-label="Controls"></aside>
-      <section id="viewer" class="viewer" aria-label="3D model"></section>
-      <aside id="info" class="panel info" aria-label="Structure information"></aside>
+      <!-- what's in the model, and how it's drawn -->
+      <aside id="left" class="panel side" aria-label="Model and display"></aside>
+      <!-- the 3D view: exactly one tool active, its options, and what a click does -->
+      <section class="panel viewer-col" aria-label="3D model">
+        <div id="toolbar" class="toolbar"></div>
+        <div id="tool-options" class="tool-options"></div>
+        <div id="viewer" class="viewer"></div>
+        <div id="status" class="status" aria-live="polite"></div>
+      </section>
+      <!-- what you clicked, what you've added, and the structure's facts -->
+      <aside id="inspector" class="panel inspector" aria-label="Inspector"></aside>
     </main>
 
     <div id="help" class="help" hidden>
       <div class="help-box" role="dialog" aria-modal="true" aria-labelledby="help-title">
         <button type="button" id="help-close" class="close" aria-label="Close help">×</button>
         <h2 id="help-title">How to use the viewer</h2>
-        <h3>3D model</h3>
+        <p>Each question has one place:</p>
         <ul>
-          <li>Drag to rotate. Scroll or pinch to zoom.</li>
-          <li>Click an atom or site to select it and see its coordinates. Shift+click selects up to 8.</li>
-          <li>2 selected objects draw the direction between them, 3 define a plane, 4 or more draw a polyhedron.</li>
-          <li>Click empty space to clear the selection.</li>
-          <li>Clicking the same spot again picks the next object behind it.</li>
+          <li><b>What's in the model, and how is it drawn?</b> The left panel: atoms and each kind of interstitial site, repeated cells and hidden atoms; then hard spheres or sparse, clipping to the unit cell, opacity, polyhedra, labels and camera views. Teaching tasks to try are at the bottom.</li>
+          <li><b>What does a click do?</b> The tool bar above the model. Exactly one tool is active, and its options appear right under it:
+            <ul>
+              <li><b>Select</b> (S): click an atom or site to inspect it; Shift+click selects several.</li>
+              <li><b>Neighbors</b> (N): click any atom or site to see what surrounds it. <i>Solo</i> hides everything else.</li>
+              <li><b>Hide</b> (H): click an atom to hide it; click its outline to bring it back. Or hide all corner, face… atoms at once.</li>
+              <li><b>Plane</b> (P): choose or add a plane (h k l), then show a <i>Section</i> or a <i>Cutaway</i>. ↑ / ↓ move the plane.</li>
+            </ul>
+          </li>
+          <li><b>What did I find?</b> The <i>Inspector</i> on the right: what you clicked, with actions; the directions, planes and points you've added; and the structure's facts.</li>
         </ul>
-        <h3>Controls</h3>
-        <ul>
-          <li><b>Show</b> turns atoms and each kind of interstitial site on or off.</li>
-          <li><b>Appearance</b>: hard spheres or a sparse model, clipping to the unit cell, atom opacity, and polyhedra around each site.</li>
-          <li><b>Neighbors tool</b>: click any atom or site to see its surrounding atoms. For a site, <i>Grow sphere to fit</i> shows where its r/R comes from. <i>Solo</i> hides everything except that object and its neighbors.</li>
-          <li><b>Hide atoms</b>: with the <i>Hide tool</i> on, click an atom to hide it and see what's behind; click its outline to bring it back. The buttons hide all corner, edge, face or inside atoms at once.</li>
-          <li><b>Plane &amp; slice</b>: enter (h k l) and move the plane with the slider or the ↑ / ↓ keys. <i>Section</i> shows only the cut; <i>Cutaway</i> removes everything on one side.</li>
-          <li><b>Repeat cells</b> extends the model in x, y and z.</li>
-          <li><b>Camera</b>: reset, or look down [100], [110] or [111].</li>
-        </ul>
-        <p>Every setting works with every other one. The page address always describes the current setup, so it can be shared as a link.</p>
+        <p>Selecting 2 objects offers the direction between them, 3 the plane through them. Nothing is added until you choose it.</p>
+        <p><b>Keys:</b> S, N, H, P switch tools; Esc goes back to Select; ⌘Z / Ctrl+Z undoes and ⇧⌘Z / Ctrl+Y redoes. Drag the model to rotate it, scroll or pinch to zoom; clicking the same spot again picks the next object behind it.</p>
+        <p>The page address always describes the current setup, so it can be shared as a link.</p>
         <p class="credit"><i>Credit:</i> Aaron M. Geller (Northwestern IT) and Jonathan Emery (Northwestern Materials Science and Engineering). The <a href="legacy/index.html">original version</a> is still available.</p>
       </div>
     </div>

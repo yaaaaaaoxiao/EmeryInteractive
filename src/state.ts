@@ -1,4 +1,5 @@
 // The single source of truth for what is on screen. Controls change fields here; the scene is rebuilt from it.
+// Every change made through the store is an undo step (except the per-device graphics choice).
 
 import {
   atomObjects,
@@ -15,33 +16,52 @@ import { type SiteId, STRUCTURES, type StructureId, type Vec3 } from './crystal/
 import type { Graphics } from './scene/look';
 
 export type Style = 'hard' | 'sparse';
-export type SliceMode = 'section' | 'cutaway';
+// what a click in the 3D view does; exactly one is active
+export type Tool = 'select' | 'neighbors' | 'hide' | 'plane';
+export type Slice = 'off' | 'section' | 'cutaway';
+
+// directions, planes and points the user added (by typing indices or from a selection)
+export type Construction =
+  // `vector` is what is drawn from `from`; `uvw` is its integer index
+  | { id: number; kind: 'direction'; uvw: Vec3; from: Vec3; vector: Vec3; visible: boolean }
+  // the plane h x + k y + l z = offset · |(h k l)|, i.e. `offset` along the unit normal, in units of a
+  | { id: number; kind: 'plane'; hkl: Vec3; offset: number; visible: boolean }
+  | { id: number; kind: 'point'; pos: Vec3; visible: boolean };
+export type PlaneConstruction = Extract<Construction, { kind: 'plane' }>;
+export type NewConstruction =
+  | Omit<Extract<Construction, { kind: 'direction' }>, 'id'>
+  | Omit<PlaneConstruction, 'id'>
+  | Omit<Extract<Construction, { kind: 'point' }>, 'id'>;
 
 export interface State {
   structure: StructureId;
+  //////// what's in the model
   showAtoms: boolean;
   showSites: Partial<Record<SiteId, boolean>>;
+  repeat: Vec3;
+  // keys of hidden atoms (drawn as outlines)
+  hidden: string[];
+  //////// how it's drawn
   style: Style;
   clipToCell: boolean;
   opacity: number;
   polyhedra: boolean;
-  repeat: Vec3;
-  // one plane: (h k l) and its distance from the origin along the unit normal, in units of a
-  plane: { hkl: Vec3; offset: number; show: boolean };
-  slice: { on: boolean; mode: SliceMode; flip: boolean };
-  // solo: show only the target and its surrounding atoms
-  neighbors: { on: boolean; target: string | null; solo: boolean };
-  // keys of hidden atoms (drawn as outlines), and whether a click hides/shows atoms
-  hidden: string[];
-  hideTool: boolean;
-  // a per-device preference (remembered in the browser, not in links)
-  graphics: Graphics;
-  // keys of selected objects (see objectKey)
-  selection: string[];
-  marker: Vec3 | null;
-  // `vector` is what is drawn; `uvw` is the integer index shown in the inputs
-  direction: { uvw: Vec3; from: Vec3; vector: Vec3; fromSelection: boolean } | null;
   labels: boolean;
+  // a per-device preference (remembered in the browser, not in links or the undo history)
+  graphics: Graphics;
+  //////// what a click does
+  tool: Tool;
+  // the neighbors tool's atom or site, whether everything else is hidden, and how faint everything else is
+  target: string | null;
+  solo: boolean;
+  othersOpacity: number;
+  // keys of selected objects (see objectKey); selecting never changes anything else
+  selection: string[];
+  //////// directions, planes and points, and the slice through one of the planes
+  constructions: Construction[];
+  activePlane: number | null;
+  slice: Slice;
+  flip: boolean;
 }
 
 export const MAX_SELECTED = 8;
@@ -51,21 +71,23 @@ export function defaultState(): State {
     structure: 'fcc',
     showAtoms: true,
     showSites: {},
+    repeat: [1, 1, 1],
+    hidden: [],
     style: 'hard',
     clipToCell: true,
-    opacity: 0.8,
+    opacity: 1,
     polyhedra: false,
-    repeat: [1, 1, 1],
-    plane: { hkl: [1, 0, 0], offset: 0.5, show: false },
-    slice: { on: false, mode: 'section', flip: false },
-    neighbors: { on: false, target: null, solo: false },
-    hidden: [],
-    hideTool: false,
-    graphics: 'quality',
-    selection: [],
-    marker: null,
-    direction: null,
     labels: true,
+    graphics: 'quality',
+    tool: 'select',
+    target: null,
+    solo: false,
+    othersOpacity: 0.3,
+    selection: [],
+    constructions: [],
+    activePlane: null,
+    slice: 'off',
+    flip: false,
   };
 }
 
@@ -102,23 +124,110 @@ export function offsetRange(hkl: Vec3, repeat: Vec3): [number, number] {
   return [Math.min(...values), Math.max(...values)];
 }
 
+//////////////// what follows from the state (computed, never stored)
+
+export function activePlane(s: State): PlaneConstruction | null {
+  const c = s.constructions.find((x) => x.id === s.activePlane);
+  return c?.kind === 'plane' ? c : null;
+}
+
+export const isSlicing = (s: State) => s.slice !== 'off' && activePlane(s) !== null;
+
+// two selected objects: the direction from the first to the second
+export function selectionDirection(s: State): { uvw: Vec3; from: Vec3; vector: Vec3 } | null {
+  if (s.selection.length !== 2) return null;
+  const [a, b] = s.selection.map((k) => parseKey(k).pos);
+  const vector = sub(b, a);
+  return { uvw: toIntegerIndices(vector), from: a, vector };
+}
+
+// three selected objects: the plane through them (null if they are on one line)
+export function selectionPlane(s: State): { hkl: Vec3; offset: number } | null {
+  if (s.selection.length !== 3) return null;
+  const p = s.selection.map((k) => parseKey(k).pos);
+  const a = sub(p[1], p[0]);
+  const b = sub(p[2], p[0]);
+  const normal: Vec3 = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  if (Math.hypot(...normal) < 1e-6) return null;
+  const hkl = toIntegerIndices(normal);
+  const n = unitNormal(hkl);
+  return { hkl, offset: n[0] * p[0][0] + n[1] * p[0][1] + n[2] * p[0][2] };
+}
+
 //////////////// store
 
 type Listener = (state: State, previous: State) => void;
+type Update = Partial<State> | ((s: State) => Partial<State>);
 
 export class Store {
   private listeners: Listener[] = [];
+  private past: State[] = [];
+  private future: State[] = [];
+  // the state before a slider started moving, so the whole drag is one undo step
+  private previewFrom: State | null = null;
+
   constructor(public state: State) {}
 
   subscribe(listener: Listener): void {
     this.listeners.push(listener);
   }
 
-  set(update: Partial<State> | ((s: State) => Partial<State>)): void {
+  private apply(next: State): void {
     const previous = this.state;
-    const patch = typeof update === 'function' ? update(previous) : update;
-    this.state = { ...previous, ...patch };
+    this.state = next;
     this.listeners.forEach((l) => l(this.state, previous));
+  }
+
+  // a change that can be undone
+  set(update: Update): void {
+    const patch = typeof update === 'function' ? update(this.state) : update;
+    this.past.push(this.previewFrom ?? this.state);
+    if (this.past.length > 200) this.past.shift();
+    this.previewFrom = null;
+    this.future = [];
+    this.apply({ ...this.state, ...patch });
+  }
+
+  // a change while a slider is being dragged: drawn now, recorded as one step by commitPreview()
+  preview(update: Update): void {
+    const patch = typeof update === 'function' ? update(this.state) : update;
+    this.previewFrom ??= this.state;
+    this.apply({ ...this.state, ...patch });
+  }
+
+  commitPreview(): void {
+    if (this.previewFrom) this.set({});
+  }
+
+  // the graphics choice belongs to the device, so it isn't an undo step
+  setGraphics(graphics: Graphics): void {
+    this.apply({ ...this.state, graphics });
+  }
+
+  get canUndo(): boolean {
+    return this.past.length > 0;
+  }
+  get canRedo(): boolean {
+    return this.future.length > 0;
+  }
+
+  undo(): void {
+    const previous = this.past.pop();
+    if (!previous) return;
+    this.future.push(this.state);
+    this.previewFrom = null;
+    this.apply({ ...previous, graphics: this.state.graphics });
+  }
+
+  redo(): void {
+    const next = this.future.pop();
+    if (!next) return;
+    this.past.push(this.state);
+    this.apply({ ...next, graphics: this.state.graphics });
+  }
+
+  reset(): void {
+    this.set((s) => ({ ...defaultState(), graphics: s.graphics }));
   }
 
   //////////////// actions with rules between fields
@@ -127,9 +236,8 @@ export class Store {
     this.set((s) => ({
       structure,
       selection: [],
-      direction: null,
       hidden: [],
-      neighbors: { ...s.neighbors, target: s.neighbors.on ? typicalAtom(structure) : null },
+      target: s.tool === 'neighbors' ? typicalAtom(structure) : null,
     }));
   }
 
@@ -139,31 +247,40 @@ export class Store {
     this.set((s) => ({ repeat, selection: s.selection.filter(inside), hidden: s.hidden.filter(inside) }));
   }
 
-  // the neighbors tool and the hide tool both use clicks, so only one is on at a time
-  setNeighborsOn(on: boolean): void {
+  setTool(tool: Tool): void {
+    if (tool === this.state.tool) return;
     this.set((s) => ({
-      neighbors: { ...s.neighbors, on, target: on ? (s.neighbors.target ?? typicalAtom(s.structure)) : s.neighbors.target },
-      hideTool: on ? false : s.hideTool,
+      tool,
+      // the neighbors tool starts on the selected object, or a typical atom
+      target: tool === 'neighbors' ? (s.target ?? s.selection[0] ?? typicalAtom(s.structure)) : s.target,
     }));
   }
 
-  // solo only makes sense with the tool on, so turning it on also turns the tool on
-  setNeighborsSolo(solo: boolean): void {
-    this.set((s) => ({
-      neighbors: { on: s.neighbors.on || solo, solo, target: s.neighbors.target ?? typicalAtom(s.structure) },
-      hideTool: solo ? false : s.hideTool,
-    }));
-  }
-
-  setHideTool(on: boolean): void {
-    this.set((s) => ({ hideTool: on, neighbors: on ? { ...s.neighbors, on: false } : s.neighbors }));
+  // what a click on an object (or on empty space: null) does depends on the tool
+  clickObject(key: string | null, additive: boolean): void {
+    const s = this.state;
+    if (s.tool === 'hide') {
+      if (key && parseKey(key).kind === 'atom') {
+        this.setHidden(s.hidden.includes(key) ? s.hidden.filter((k) => k !== key) : [...s.hidden, key]);
+      }
+      return;
+    }
+    if (s.tool === 'neighbors') {
+      if (key && key !== s.target) this.set({ target: key });
+      return;
+    }
+    // select and plane tools: clicking selects (3 selected atoms offer a plane)
+    let selection: string[];
+    if (!key) selection = additive ? s.selection : [];
+    else if (!additive) selection = s.selection.length === 1 && s.selection[0] === key ? [] : [key];
+    else if (s.selection.includes(key)) selection = s.selection.filter((k) => k !== key);
+    else selection = [...s.selection, key].slice(-MAX_SELECTED);
+    if (selection.join() !== s.selection.join()) this.set({ selection });
   }
 
   // hidden atoms can't stay selected
   setHidden(hidden: string[]): void {
-    const s = this.state;
-    const selection = s.selection.filter((k) => !hidden.includes(k));
-    this.set({ ...(selection.length !== s.selection.length ? selectionPatch(s, selection) : {}), hidden });
+    this.set((s) => ({ hidden, selection: s.selection.filter((k) => !hidden.includes(k)) }));
   }
 
   // hide (or show again) every atom at corners, edges, faces or inside the cells
@@ -173,58 +290,58 @@ export class Store {
     this.setHidden(hide ? [...new Set([...s.hidden, ...keys])] : s.hidden.filter((k) => !keys.includes(k)));
   }
 
-  // click on an object: select it (shift adds/removes), pick the neighbours target, or hide/show an atom
-  clickObject(key: string | null, additive: boolean): void {
-    const s = this.state;
-    if (s.hideTool) {
-      if (key && parseKey(key).kind === 'atom') {
-        this.setHidden(s.hidden.includes(key) ? s.hidden.filter((k) => k !== key) : [...s.hidden, key]);
-      }
-      return;
-    }
-    if (s.neighbors.on) {
-      if (key) this.set({ neighbors: { ...s.neighbors, target: key } });
-      return;
-    }
-    let selection: string[];
-    if (!key) selection = additive ? s.selection : [];
-    else if (!additive) selection = s.selection.length === 1 && s.selection[0] === key ? [] : [key];
-    else if (s.selection.includes(key)) selection = s.selection.filter((k) => k !== key);
-    else selection = [...s.selection, key].slice(-MAX_SELECTED);
-    this.setSelection(selection);
+  //////////////// directions, planes and points
+
+  // adds it (one undo step, together with `extra`, which can depend on the new id) and returns its id;
+  // a new plane becomes the active one if there is none
+  addConstruction(c: NewConstruction, extra: Partial<State> | ((id: number) => Partial<State>) = {}): number {
+    const id = Math.max(0, ...this.state.constructions.map((x) => x.id)) + 1;
+    this.set((s) => ({
+      constructions: [...s.constructions, { ...c, id } as Construction],
+      activePlane: c.kind === 'plane' && s.activePlane === null ? id : s.activePlane,
+      ...(typeof extra === 'function' ? extra(id) : extra),
+    }));
+    return id;
   }
 
-  setSelection(selection: string[]): void {
-    this.set(selectionPatch(this.state, selection));
-  }
-}
-
-// the selection with what follows from it: 2 objects give a direction, 3 a plane
-function selectionPatch(s: State, selection: string[]): Partial<State> {
-  const pos = selection.map((k) => parseKey(k).pos);
-  const patch: Partial<State> = { selection };
-
-  if (pos.length === 2) {
-    // two objects: the direction between them
-    const vector = sub(pos[1], pos[0]);
-    patch.direction = { uvw: toIntegerIndices(vector), from: pos[0], vector, fromSelection: true };
-  } else if (s.direction?.fromSelection) {
-    patch.direction = null;
+  addPlane(hkl: Vec3, offset = standardOffset(hkl), extra: Partial<State> | ((id: number) => Partial<State>) = {}): number {
+    return this.addConstruction({ kind: 'plane', hkl, offset, visible: true }, extra);
   }
 
-  if (pos.length === 3) {
-    // three objects: the plane through them, if they are not on one line
-    const a = sub(pos[1], pos[0]);
-    const b = sub(pos[2], pos[0]);
-    const normal: Vec3 = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-    if (Math.hypot(...normal) > 1e-6) {
-      const hkl = toIntegerIndices(normal);
-      const n = unitNormal(hkl);
-      const offset = n[0] * pos[0][0] + n[1] * pos[0][1] + n[2] * pos[0][2];
-      patch.plane = { hkl, offset, show: true };
-    }
+  addDirectionFromSelection(): void {
+    const d = selectionDirection(this.state);
+    if (d) this.addConstruction({ kind: 'direction', ...d, visible: true });
   }
-  return patch;
+
+  // `slice`: also make it the active plane and show the section through it
+  addPlaneFromSelection(slice = false): void {
+    const p = selectionPlane(this.state);
+    if (p) this.addPlane(p.hkl, p.offset, slice ? (id) => ({ activePlane: id, slice: 'section', tool: 'plane' }) : {});
+  }
+
+  updateConstruction(id: number, patch: Partial<Construction>, preview = false): void {
+    const update = (s: State) => ({
+      constructions: s.constructions.map((c) => (c.id === id ? ({ ...c, ...patch } as Construction) : c)),
+    });
+    if (preview) this.preview(update);
+    else this.set(update);
+  }
+
+  removeConstruction(id: number): void {
+    this.set((s) => ({
+      constructions: s.constructions.filter((c) => c.id !== id),
+      ...(s.activePlane === id ? { activePlane: null, slice: 'off' as Slice } : {}),
+    }));
+  }
+
+  // ↑ / ↓: move the active plane along its normal, within the block. While a key is held the moves are previews,
+  // committed as one undo step when it's released (see main.ts)
+  moveActivePlane(step: number, preview = false): void {
+    const p = activePlane(this.state);
+    if (!p) return;
+    const [lo, hi] = offsetRange(p.hkl, this.state.repeat);
+    this.updateConstruction(p.id, { offset: +Math.min(hi, Math.max(lo, p.offset + step)).toFixed(4) }, preview);
+  }
 }
 
 // keys of the atoms in the block at corners, edges, faces or inside the cells
@@ -253,6 +370,41 @@ export function neighborsOf(structure: StructureId, key: string) {
 
 const bool = (v: string | null, fallback: boolean) => (v === null ? fallback : v === '1');
 const nums = (v: string | null) => (v ? v.split(',').map(Number) : null);
+const fmt = (v: number) => String(+v.toFixed(4));
+const TOOLS: Tool[] = ['select', 'neighbors', 'hide', 'plane'];
+
+// constructions in a link: d,u,v,w,from…,vector… · p,h,k,l,offset · q,x,y,z — joined by ';', '~' marks a hidden one
+function encodeConstruction(c: Construction): string {
+  const body =
+    c.kind === 'direction'
+      ? ['d', ...c.uvw, ...c.from, ...c.vector]
+      : c.kind === 'plane'
+        ? ['p', ...c.hkl, c.offset]
+        : ['q', ...c.pos];
+  return (c.visible ? '' : '~') + body.map((v) => (typeof v === 'number' ? fmt(v) : v)).join(',');
+}
+
+function decodeConstruction(text: string, id: number): Construction | null {
+  const visible = !text.startsWith('~');
+  const [kind, ...rest] = text.replace(/^~/, '').split(',');
+  const v = rest.map(Number);
+  if (v.some((x) => !Number.isFinite(x))) return null;
+  if (kind === 'd' && v.length === 9 && v.slice(6).some((x) => x !== 0)) {
+    return {
+      id,
+      kind: 'direction',
+      uvw: v.slice(0, 3) as Vec3,
+      from: v.slice(3, 6) as Vec3,
+      vector: v.slice(6) as Vec3,
+      visible,
+    };
+  }
+  if (kind === 'p' && v.length === 4 && v.slice(0, 3).some((x) => x !== 0)) {
+    return { id, kind: 'plane', hkl: v.slice(0, 3).map(Math.round) as Vec3, offset: v[3], visible };
+  }
+  if (kind === 'q' && v.length === 3) return { id, kind: 'point', pos: v as Vec3, visible };
+  return null;
+}
 
 export function stateFromURL(search: string): State {
   const s = defaultState();
@@ -268,18 +420,8 @@ export function stateFromURL(search: string): State {
   s.polyhedra = bool(q.get('poly'), s.polyhedra);
   const rep = nums(q.get('rep'));
   if (rep?.length === 3 && rep.every((v) => v >= 1 && v <= 3)) s.repeat = rep.map(Math.round) as Vec3;
-  const pl = nums(q.get('plane'));
-  if (pl?.length === 5 && pl.slice(0, 3).some((v) => v !== 0)) {
-    s.plane = { hkl: pl.slice(0, 3) as Vec3, offset: pl[3], show: pl[4] === 1 };
-  }
-  const sl = q.get('slice');
-  if (sl) {
-    const [on, mode, flip] = sl.split(',');
-    s.slice = { on: on === '1', mode: mode === 'cutaway' ? 'cutaway' : 'section', flip: flip === '1' };
-  }
-  const nb = q.get('nb');
-  if (nb === '1' || nb === 'solo') s.neighbors = { on: true, target: typicalAtom(s.structure), solo: nb === 'solo' };
   s.labels = bool(q.get('labels'), s.labels);
+
   // hidden atoms: x,y,z;x,y,z — only atoms that exist in this block
   const atoms = new Set(atomObjects(STRUCTURES[s.structure], s.repeat).map((a) => a.key));
   for (const p of (q.get('hide') ?? '').split(';').filter(Boolean)) {
@@ -287,6 +429,54 @@ export function stateFromURL(search: string): State {
     const key = pos.length === 3 ? objectKey('atom', pos as Vec3) : '';
     if (atoms.has(key) && !s.hidden.includes(key)) s.hidden.push(key);
   }
+
+  // tool, and the neighbors tool's target (t=oct:0.5,0.5,0.5)
+  const tool = q.get('tool') as Tool | null;
+  if (tool && TOOLS.includes(tool)) s.tool = tool;
+  s.solo = bool(q.get('solo'), false);
+  const others = Number(q.get('others'));
+  if (others >= 0.05 && others <= 1) s.othersOpacity = others;
+  const t = q.get('t');
+  if (t && /^[a-z]+:-?[\d.]+,-?[\d.]+,-?[\d.]+$/.test(t)) {
+    const { kind, pos } = parseKey(t);
+    if (kind === 'atom' || STRUCTURES[s.structure].sites.some((x) => x.id === kind)) s.target = objectKey(kind, pos);
+  }
+
+  // directions, planes and points; plane=N is the active plane (N-th construction), slice=section,1 adds the slice
+  (q.get('c') ?? '')
+    .split(';')
+    .filter(Boolean)
+    .forEach((text) => {
+      const c = decodeConstruction(text, s.constructions.length + 1);
+      if (c) s.constructions.push(c);
+    });
+  const active = Number(q.get('plane'));
+  if (s.constructions[active - 1]?.kind === 'plane') s.activePlane = active;
+  const slice = q.get('slice')?.split(',');
+  if (slice && s.activePlane !== null && (slice[0] === 'section' || slice[0] === 'cutaway')) {
+    s.slice = slice[0];
+    s.flip = slice[1] === '1';
+  }
+
+  // links from before the tool bar: nb=1|solo, plane=h,k,l,offset,show and slice=on,mode,flip
+  const nb = q.get('nb');
+  if (nb === '1' || nb === 'solo') {
+    s.tool = 'neighbors';
+    s.solo = nb === 'solo';
+  }
+  const old = nums(q.get('plane'));
+  if (old?.length === 5 && old.slice(0, 3).some((v) => v !== 0)) {
+    const [on, mode, flip] = (q.get('slice') ?? '').split(',');
+    const id = s.constructions.length + 1;
+    s.constructions.push({ id, kind: 'plane', hkl: old.slice(0, 3) as Vec3, offset: old[3], visible: true });
+    s.activePlane = id;
+    if (on === '1') {
+      s.slice = mode === 'cutaway' ? 'cutaway' : 'section';
+      s.flip = flip === '1';
+    }
+  }
+
+  if (s.tool === 'neighbors' && !s.target) s.target = typicalAtom(s.structure);
   return s;
 }
 
@@ -304,22 +494,20 @@ export function stateToURL(s: State): string {
   if (s.opacity !== d.opacity) q.set('op', String(s.opacity));
   if (s.polyhedra) q.set('poly', '1');
   if (s.repeat.some((v) => v !== 1)) q.set('rep', s.repeat.join(','));
-  if (s.plane.show || s.slice.on || s.plane.hkl.join() !== d.plane.hkl.join() || s.plane.offset !== d.plane.offset) {
-    q.set('plane', [...s.plane.hkl, +s.plane.offset.toFixed(4), s.plane.show ? 1 : 0].join(','));
-  }
-  if (s.slice.on) q.set('slice', ['1', s.slice.mode, s.slice.flip ? '1' : '0'].join(','));
-  if (s.neighbors.on) q.set('nb', s.neighbors.solo ? 'solo' : '1');
   if (!s.labels) q.set('labels', '0');
-  if (s.hidden.length)
-    q.set(
-      'hide',
-      s.hidden
-        .map((k) =>
-          parseKey(k)
-            .pos.map((v) => +v.toFixed(4))
-            .join(','),
-        )
-        .join(';'),
-    );
-  return `?${q.toString().replace(/%2C/g, ',').replace(/%3B/g, ';')}`;
+  if (s.hidden.length) q.set('hide', s.hidden.map((k) => parseKey(k).pos.map(fmt).join(',')).join(';'));
+  if (s.tool !== 'select') q.set('tool', s.tool);
+  if (s.solo) q.set('solo', '1');
+  if (s.othersOpacity !== d.othersOpacity) q.set('others', String(s.othersOpacity));
+  if (s.tool === 'neighbors' && s.target) {
+    const { kind, pos } = parseKey(s.target);
+    q.set('t', `${kind}:${pos.map(fmt).join(',')}`);
+  }
+  if (s.constructions.length) {
+    q.set('c', s.constructions.map(encodeConstruction).join(';'));
+    const index = s.constructions.findIndex((c) => c.id === s.activePlane);
+    if (index >= 0) q.set('plane', String(index + 1));
+    if (isSlicing(s)) q.set('slice', `${s.slice},${s.flip ? 1 : 0}`);
+  }
+  return `?${q.toString().replace(/%2C/g, ',').replace(/%3B/g, ';').replace(/%3A/g, ':').replace(/%7E/g, '~')}`;
 }

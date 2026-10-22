@@ -352,3 +352,59 @@ test('the theme can be switched and is remembered on this device', async ({ page
   await expect(html).not.toHaveAttribute('data-theme');
   expect(errors).toEqual([]);
 });
+
+test('changing the setup reuses the compiled shaders and still releases the old scene', async ({ page }) => {
+  await open(page);
+  const result = await page.evaluate(async () => {
+    const { store, viewer } = window as unknown as {
+      store: { set(p: object): void; preview(p: object): void; commitPreview(): void };
+      viewer: { renderer: { info: { programs: { id: number }[]; memory: { geometries: number } } } };
+    };
+    const { info } = viewer.renderer;
+    const drawn = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const programs = () => info.programs.map((p) => p.id).join();
+    store.set({ opacity: 0.5 });
+    await drawn();
+    const before = { programs: programs(), geometries: info.memory.geometries };
+    // what dragging the opacity slider does
+    for (const opacity of [0.45, 0.4, 0.35]) {
+      store.preview({ opacity });
+      await drawn();
+    }
+    store.preview({ opacity: 0.5 });
+    store.commitPreview();
+    await drawn();
+    return { before, after: { programs: programs(), geometries: info.memory.geometries } };
+  });
+  // recompiling would replace the programs with new ones
+  expect(result.after.programs).toBe(result.before.programs);
+  expect(result.after.geometries).toBe(result.before.geometries);
+});
+
+test('going back to a tool reuses the shaders compiled for it', async ({ page }) => {
+  await open(page);
+  const programs = await page.evaluate(async () => {
+    const { store, viewer } = window as unknown as {
+      store: { setTool(t: string): void };
+      viewer: { renderer: { info: { programs: { id: number }[] } } };
+    };
+    const drawn = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const ids = () =>
+      viewer.renderer.info.programs
+        .map((p) => p.id)
+        .sort((a, b) => a - b)
+        .join();
+    // Neighbors has shaders of its own (its rim glow, no clipping to the cell)
+    store.setTool('neighbors');
+    await drawn();
+    store.setTool('select');
+    await drawn();
+    const seen = ids();
+    store.setTool('neighbors');
+    await drawn();
+    store.setTool('select');
+    await drawn();
+    return { seen, after: ids() };
+  });
+  expect(programs.after).toBe(programs.seen);
+});

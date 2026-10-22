@@ -7,6 +7,17 @@
   --accent: #2563eb;
   --accent-soft: #e6eefe;
   --highlight: #ff6347;
+  --on-accent: #ffffff;
+  --danger: #d92d20;
+  --danger-hover: #b42318;
+  --switch-off: #c4c9d1;
+  --viewer-bg: #ffffff;
+  --card: #fafbfc;
+  --card-focus: #f3f7ff;
+  --card-focus-border: #b9cdf7;
+  --card-selection: #fff6f4;
+  --card-selection-border: #ffc2b5;
+  --backdrop: rgba(20, 24, 31, 0.45);
   --radius: 8px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
@@ -65,7 +76,7 @@ body {
 .tabs button[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .help-button {
   font-weight: 500;
@@ -102,7 +113,7 @@ body {
   width: 30px;
   height: 18px;
   border-radius: 9px;
-  background-color: #c4c9d1;
+  background-color: var(--switch-off);
   background-image: radial-gradient(circle at 9px 9px, #fff 6px, transparent 6.5px);
   background-repeat: no-repeat;
 }
@@ -118,6 +129,18 @@ body {
 .mode-toggle[aria-pressed="true"]::before {
   background-color: var(--accent);
   background-position: 12px 0;
+}
+
+/* theme picker */
+.theme-select {
+  flex: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
 }
 
 /* layout */
@@ -147,7 +170,7 @@ body {
   flex: 1;
   min-height: 300px;
   overflow: hidden;
-  background: #fff;
+  background: var(--viewer-bg);
   border-block: 1px solid var(--border);
 }
 .viewer canvas {
@@ -186,8 +209,11 @@ body {
     margin-left: auto;
   }
   /* the Performance mode switch, then the credit, get their own lines under the tabs */
-  .mode-toggle {
+  .mode-toggle,
+  .theme-select {
     order: 1;
+  }
+  .mode-toggle {
     padding-left: 0;
   }
   .header-credit {
@@ -273,7 +299,7 @@ button.tool {
 button.tool[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .tool-icon svg {
   display: block;
@@ -293,7 +319,7 @@ kbd {
   color: var(--muted);
 }
 button.tool[aria-pressed="true"] kbd {
-  color: #fff;
+  color: var(--on-accent);
   border-color: rgba(255, 255, 255, 0.5);
 }
 .tool-options {
@@ -427,7 +453,7 @@ button.primary {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 button:focus-visible,
 input:focus-visible,
@@ -534,11 +560,11 @@ table.sites th {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 10px 12px;
-  background: #fafbfc;
+  background: var(--card);
 }
 .card.focus {
-  border-color: #b9cdf7;
-  background: #f3f7ff;
+  border-color: var(--card-focus-border);
+  background: var(--card-focus);
 }
 .card p {
   margin: 6px 0;
@@ -554,8 +580,8 @@ table.sites th {
   align-items: center;
 }
 .card.selection {
-  border-color: #ffc2b5;
-  background: #fff6f4;
+  border-color: var(--card-selection-border);
+  background: var(--card-selection);
 }
 .fit {
   font-weight: 600;
@@ -607,14 +633,14 @@ table.sites th {
 }
 .scene-label.grow.done {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* help */
 .help {
   position: fixed;
   inset: 0;
-  background: rgba(20, 24, 31, 0.45);
+  background: var(--backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -685,18 +711,15 @@ button:disabled {
 }
 
 /* "Show all hidden atoms": red while there is something to show */
-:root {
-  --danger: #d92d20;
-}
 button.danger {
   background: var(--danger);
   border-color: var(--danger);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
 }
 button.danger:hover {
-  background: #b42318;
-  border-color: #b42318;
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
 }
 /* the teaching tasks under the model and display settings */
 .tasks-box {

@@ -1,5 +1,6 @@
 import 'katex/dist/katex.min.css';
 import './styles.css';
+import './themes/ios6.css';
 import { STRUCTURES, type StructureId } from './crystal/structures';
 import { buildScene } from './scene/build';
 import { LOOKS, savedGraphics, saveGraphics } from './scene/look';
@@ -7,6 +8,7 @@ import { Viewer } from './scene/viewer';
 import { activePlane, isSlicing, type State, Store, stateFromURL, stateToURL, type Tool } from './state';
 import { Inspector } from './ui/inspector';
 import { LeftPanel } from './ui/left';
+import { savedTheme, setTheme, type Theme } from './ui/theme';
 import { ToolBar } from './ui/tools';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -27,6 +29,11 @@ const graphicsToggle = $('graphics-toggle');
 graphicsToggle.addEventListener('click', () =>
   store.setGraphics(store.state.graphics === 'performance' ? 'quality' : 'performance'),
 );
+
+// the page's theme (a device preference, not an undo step)
+const themeSelect = $('theme-select') as HTMLSelectElement;
+themeSelect.value = savedTheme();
+themeSelect.addEventListener('change', () => setTheme(themeSelect.value as Theme));
 
 function render(state: State, previous: State | null): void {
   // lights and reflections first, so the new materials are made for them

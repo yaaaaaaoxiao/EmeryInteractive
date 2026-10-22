@@ -28,6 +28,11 @@ export class Viewer {
   private environmentMap: THREE.Texture | null = null;
   private look: Look | null = null;
   private content: THREE.Group | null = null;
+  // scenes replaced since the last redraw, released right after it (see show())
+  private retired: THREE.Group[] = [];
+  // one material per compiled shader, never released: three.js deletes a shader as soon as no material uses it,
+  // so leaving a tool with its own shaders (Neighbors) would mean compiling them again on every return (30-60 ms)
+  private shaderKeepers = new Map<string, THREE.Material>();
   private pickables: THREE.Object3D[] = [];
   private overlay = new THREE.Group();
   private animation: ((time: number) => boolean) | null = null;
@@ -106,9 +111,12 @@ export class Viewer {
   }
 
   show(built: Built, blockSize: Vec3): void {
+    // The old scene is released only after the new one has been drawn. three.js deletes a compiled shader as soon
+    // as no material uses it, so releasing first would recompile the same shaders on every change (~40 ms, which
+    // made dragging a slider stutter); this way the new materials reuse them.
     if (this.content) {
       this.scene.remove(this.content);
-      dispose(this.content);
+      this.retired.push(this.content);
     }
     this.cancelAnimation();
     this.content = built.group;
@@ -273,6 +281,22 @@ export class Viewer {
     dispose(this.overlay);
   }
 
+  private release(root: THREE.Object3D): void {
+    const keep = new Set<THREE.Material>();
+    root.traverse((o) => {
+      for (const m of materialsOf(o)) {
+        // (the renderer's per-material record; typed loosely by three.js)
+        const record = this.renderer.properties.get(m) as { currentProgram?: THREE.WebGLProgram };
+        const key = record.currentProgram?.cacheKey;
+        if (key && !this.shaderKeepers.has(key)) {
+          this.shaderKeepers.set(key, m);
+          keep.add(m);
+        }
+      }
+    });
+    dispose(root, keep);
+  }
+
   //////////////// loop
 
   private resize(): void {
@@ -338,6 +362,8 @@ export class Viewer {
     this.needsRender = false;
     this.updateXray();
     this.renderer.render(this.scene, this.camera);
+    // (before the labels are drawn, so the old scene's labels are gone too)
+    for (const old of this.retired.splice(0)) this.release(old);
     this.labelRenderer.render(this.scene, this.camera);
   }
 }
@@ -349,12 +375,16 @@ function isVisibleHit(hit: THREE.Intersection): boolean {
   return planes.every((p) => p.distanceToPoint(hit.point) >= -1e-3);
 }
 
-function dispose(root: THREE.Object3D): void {
+const materialsOf = (o: THREE.Object3D): THREE.Material[] => {
+  const { material } = o as THREE.Mesh;
+  return Array.isArray(material) ? material : material ? [material] : [];
+};
+
+function dispose(root: THREE.Object3D, keep: Set<THREE.Material> = new Set()): void {
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (mesh.geometry && !mesh.geometry.userData.cached) mesh.geometry.dispose();
-    const mats = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
-    mats.forEach((m) => m.dispose());
+    for (const m of materialsOf(o)) if (!keep.has(m)) m.dispose();
     if (o instanceof CSS2DObject) o.element.remove();
   });
 }

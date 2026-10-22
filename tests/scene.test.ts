@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // (the scene's coordinate labels are HTML elements)
 
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { buildScene, type PickTarget } from '../src/scene/build';
 import { defaultState, type State, Store, typicalAtom } from '../src/state';
@@ -184,5 +184,49 @@ describe('directions, planes and points', () => {
     };
     expect(count(withDirection)).toBeGreaterThan(count(base));
     expect(count({ ...withDirection, constructions: [{ ...withDirection.constructions[0], visible: false }] })).toBe(count(base));
+  });
+});
+
+describe('materials', () => {
+  // a 3×3×3 block cut away by a (111) plane: many spheres, caps and ghosts
+  const cutaway: State = {
+    ...defaultState(),
+    repeat: [3, 3, 3],
+    constructions: [{ id: 1, kind: 'plane', hkl: [1, 1, 1], offset: 1.5, visible: true }],
+    activePlane: 1,
+    slice: 'cutaway',
+  };
+  const meshes = (state: State) => {
+    const out: THREE.Mesh[] = [];
+    buildScene(state, noop).group.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) out.push(o as THREE.Mesh);
+    });
+    return out;
+  };
+
+  it('meshes with the same settings share one (each new material costs time when first drawn)', () => {
+    const all = meshes(cutaway);
+    expect(all.length).toBeGreaterThan(300);
+    expect(new Set(all.map((m) => m.material)).size).toBeLessThan(30);
+  });
+
+  it('cut faces are drawn from both sides and spheres from the front, so they never share one', () => {
+    const all = meshes(cutaway);
+    const sides = (type: string) =>
+      new Set(all.filter((m) => m.geometry.type === type).map((m) => (m.material as THREE.Material).side));
+    expect(sides('CircleGeometry')).toEqual(new Set([THREE.DoubleSide]));
+    expect(sides('SphereGeometry')).toEqual(new Set([THREE.FrontSide]));
+  });
+
+  it('neighbors that fade as the camera turns each have their own', () => {
+    const state: State = { ...defaultState(), tool: 'neighbors', target: typicalAtom('fcc') };
+    const fading = meshes(state).filter((m) => m.userData.xray);
+    expect(fading).toHaveLength(12);
+    expect(new Set(fading.map((m) => m.material)).size).toBe(12);
+  });
+
+  it('a new scene gets new materials, so releasing the old scene never affects it', () => {
+    const a = new Set(meshes(cutaway).map((m) => m.material));
+    expect(meshes(cutaway).some((m) => a.has(m.material as THREE.Material))).toBe(false);
   });
 });

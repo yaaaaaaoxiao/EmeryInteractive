@@ -1,13 +1,15 @@
 // The page's look ("theme"): remembered per device, like Performance mode, and not part of shared links.
 // index.html applies the saved theme before the page is first drawn, so it doesn't flash the standard one.
 
-export type Theme = 'standard' | 'ios6';
+export type Theme = 'standard' | 'skeuomorphic';
 
 const STORAGE_KEY = 'crystalview.theme';
 
 export function savedTheme(): Theme {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'ios6' ? 'ios6' : 'standard';
+    const saved = localStorage.getItem(STORAGE_KEY);
+    // (it was called "ios6" at first)
+    return saved === 'skeuomorphic' || saved === 'ios6' ? 'skeuomorphic' : 'standard';
   } catch {
     return 'standard';
   }

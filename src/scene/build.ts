@@ -100,15 +100,48 @@ function withRim<T extends THREE.MeshStandardMaterial>(m: T): T {
 // the look of the scene being built (set at the start of buildScene, used by material())
 let look: Look = LOOKS.quality;
 
-function material(color: number, opacity: number, clippingPlanes: THREE.Plane[] = [], depthWrite = opacity > 0.5) {
-  return makeMaterial(look, {
-    color,
-    transparent: opacity < 1,
-    opacity,
-    depthWrite,
-    clippingPlanes,
-    side: THREE.FrontSide,
-  });
+// Meshes with the same settings share one material within a scene: the 3×3×3 block has ~435 spheres and caps but
+// ~11 distinct materials, and each new material costs setup time when it's first drawn. So a material from here
+// must not be changed afterwards; pass the setting instead (or use uniqueMaterial).
+let shared = new Map<string, THREE.MeshStandardMaterial>();
+
+interface MaterialOptions {
+  // drawn from both sides (flat cap disks)
+  doubleSided?: boolean;
+  // pulled in front of a translucent slice sheet drawn on the same plane
+  onTop?: boolean;
+}
+
+function material(
+  color: number,
+  opacity: number,
+  clippingPlanes: THREE.Plane[] = [],
+  depthWrite = opacity > 0.5,
+  { doubleSided = false, onTop = false }: MaterialOptions = {},
+) {
+  const planes = clippingPlanes.map((p) => [p.normal.x, p.normal.y, p.normal.z, p.constant].join());
+  const key = [color, opacity, depthWrite, doubleSided, onTop, ...planes].join('|');
+  let m = shared.get(key);
+  if (!m) {
+    m = makeMaterial(look, {
+      color,
+      transparent: opacity < 1,
+      opacity,
+      depthWrite,
+      clippingPlanes,
+      side: doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+      polygonOffset: onTop,
+      polygonOffsetFactor: onTop ? -1 : 0,
+      polygonOffsetUnits: onTop ? -4 : 0,
+    });
+    shared.set(key, m);
+  }
+  return m;
+}
+
+// a material of its own, for one that is changed after the scene is built
+function uniqueMaterial(color: number, opacity: number) {
+  return makeMaterial(look, { color, transparent: opacity < 1, opacity, depthWrite: opacity > 0.5, side: THREE.FrontSide });
 }
 
 //////////////// planes
@@ -145,13 +178,10 @@ function capDisk(
   const s = plane.distanceToPoint(c);
   if (Math.abs(s) >= radius) return null;
   const r = Math.sqrt(radius * radius - s * s);
-  const mesh = new THREE.Mesh(new THREE.CircleGeometry(r, 64), material(color, opacity, clip));
-  mesh.material.side = THREE.DoubleSide;
-  if (onTop) {
-    mesh.material.polygonOffset = true;
-    mesh.material.polygonOffsetFactor = -1;
-    mesh.material.polygonOffsetUnits = -4;
-  }
+  const mesh = new THREE.Mesh(
+    new THREE.CircleGeometry(r, 64),
+    material(color, opacity, clip, undefined, { doubleSided: true, onTop }),
+  );
   mesh.position.copy(c.sub(plane.normal.clone().multiplyScalar(s)));
   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), plane.normal);
   return mesh;
@@ -237,6 +267,7 @@ export function polyhedron(points: Vec3[], color: number, opacity: number): THRE
 
 export function buildScene(state: State, callbacks: BuildCallbacks): Built {
   look = LOOKS[state.graphics];
+  shared = new Map();
   const structure = STRUCTURES[state.structure];
   const group = new THREE.Group();
   const pickables: THREE.Object3D[] = [];
@@ -385,7 +416,8 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
     const farColor = new THREE.Color(structure.color).lerp(new THREE.Color(0xffffff), 0.5).getHex();
     for (const p of n.positions) {
       const far = dist(p, n.pos) > n.distance + 1e-4;
-      const m = new THREE.Mesh(sphereGeometry(neighborRadius), withRim(material(far ? farColor : structure.color, 1)));
+      // (own materials: the viewer fades the ones in front of the centre as the camera turns)
+      const m = new THREE.Mesh(sphereGeometry(neighborRadius), withRim(uniqueMaterial(far ? farColor : structure.color, 1)));
       m.position.copy(v3(p));
       // hard spheres hide the centre, so the viewer makes the ones in front of it see-through (see Viewer.updateXray)
       if (state.style === 'hard') m.userData.xray = { center: n.pos };

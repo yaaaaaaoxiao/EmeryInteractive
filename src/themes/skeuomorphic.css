@@ -1,0 +1,455 @@
+/* Skeuomorphic theme, in the style of iOS 6: glossy blue-grey bars, pinstriped panels of white rounded "grouped"
+   cards, brushed aluminium strips, bevelled buttons, ON/OFF switches and embossed text, on a linen background.
+   Chosen in the top bar (src/ui/theme.ts); every rule here applies only while <html data-theme="skeuomorphic">.
+   The textures are small SVG files next to this one. */
+
+:root[data-theme="skeuomorphic"] {
+  --bg: #4a4e55;
+  --panel: #ffffff;
+  --text: #111418;
+  --muted: #4c566c;
+  --border: #c8ccd2;
+  --accent: #2a6ad6;
+  --accent-soft: #dbe6fa;
+  --on-accent: #ffffff;
+  --danger: #cf2226;
+  --danger-hover: #b51c20;
+  --viewer-bg: #ffffff;
+  --card: #ffffff;
+  --card-focus: #ffffff;
+  --card-focus-border: #abb2ba;
+  --card-selection: #ffffff;
+  --card-selection-border: #abb2ba;
+  --backdrop: rgba(0, 0, 0, 0.5);
+  --radius: 9px;
+
+  /* materials */
+  --skeuo-grain: url("./grain.svg");
+  --skeuo-brushed: url("./brushed.svg");
+  --skeuo-linen: url("./linen.svg");
+  --skeuo-pinstripes: repeating-linear-gradient(90deg, #c5ccd4 0 4px, #cbd2d9 4px 7px);
+  --skeuo-bar: linear-gradient(#b0bccd 0%, #8c9fb7 50%, #8195af 50%, #6d84a2 100%);
+  --skeuo-bar-button: linear-gradient(#9fb0c6 0%, #8195af 50%, #7389a5 50%, #5f7591 100%);
+  --skeuo-bar-button-down: linear-gradient(#5c7290, #455a76);
+  --skeuo-strip: linear-gradient(#e6eaef, #c7cfd9);
+  --skeuo-aluminium: linear-gradient(#e9eaec, #c9cbcf);
+  --skeuo-white: linear-gradient(#ffffff, #e3e3e3);
+  --skeuo-blue: linear-gradient(#6ba2f1 0%, #3f80e6 50%, #2c6edd 50%, #2063d6 100%);
+  --skeuo-blue-down: linear-gradient(#1d58cf, #4a88ea);
+  --skeuo-red: linear-gradient(#ef7b7d 0%, #e04548 50%, #d22a2e 50%, #c21d22 100%);
+  --skeuo-knob: radial-gradient(closest-side, #fdfdfd 0, #ececec 55%, #c9c9c9 84%, #8f8f8f 94%, transparent 100%);
+  --skeuo-emboss: 0 1px 0 rgba(255, 255, 255, 0.8);
+  --skeuo-engrave: 0 -1px 0 rgba(0, 0, 0, 0.45);
+  --skeuo-bar-edge: #2d3642;
+
+  background: var(--skeuo-linen) var(--bg);
+}
+
+:root[data-theme="skeuomorphic"] body {
+  background: var(--skeuo-linen) var(--bg);
+}
+
+/* ---------- top bar: the navigation bar ---------- */
+
+:root[data-theme="skeuomorphic"] .topbar {
+  position: relative;
+  z-index: 1;
+  background: var(--skeuo-grain), var(--skeuo-bar);
+  border-bottom: 1px solid var(--skeuo-bar-edge);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 1px 4px rgba(0, 0, 0, 0.5);
+}
+/* the black wordmark becomes a white title pressed into the bar */
+:root[data-theme="skeuomorphic"] .logo img {
+  filter: brightness(0) invert(1) drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.5));
+}
+:root[data-theme="skeuomorphic"] .header-credit,
+:root[data-theme="skeuomorphic"] .mode-toggle,
+:root[data-theme="skeuomorphic"] .mode-toggle[aria-pressed="true"] {
+  color: #1b2636;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+:root[data-theme="skeuomorphic"] .mode-toggle {
+  font-weight: 600;
+}
+
+/* bar buttons: FCC/BCC/SC (one segmented control), the tools, Undo/Redo/Reset, Help and the theme picker */
+:root[data-theme="skeuomorphic"] .tabs {
+  gap: 0;
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+:root[data-theme="skeuomorphic"] .tabs button,
+:root[data-theme="skeuomorphic"] button.tool,
+:root[data-theme="skeuomorphic"] .history button.small,
+:root[data-theme="skeuomorphic"] .help-button,
+:root[data-theme="skeuomorphic"] select.theme-select {
+  color: #fff;
+  font-weight: 700;
+  text-shadow: var(--skeuo-engrave);
+  border: 1px solid #36475e;
+  border-radius: 6px;
+  background: var(--skeuo-grain), var(--skeuo-bar-button);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.3);
+}
+:root[data-theme="skeuomorphic"] .tabs button {
+  border-radius: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+:root[data-theme="skeuomorphic"] .tabs button + button {
+  border-left-color: #2f3f55;
+  margin-left: -1px;
+}
+:root[data-theme="skeuomorphic"] .tabs button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+:root[data-theme="skeuomorphic"] .tabs button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+:root[data-theme="skeuomorphic"] .tabs button[aria-pressed="true"],
+:root[data-theme="skeuomorphic"] button.tool[aria-pressed="true"],
+:root[data-theme="skeuomorphic"] .history button.small:active:not(:disabled),
+:root[data-theme="skeuomorphic"] .help-button:active {
+  color: #fff;
+  border-color: #2c3a4d;
+  background: var(--skeuo-grain), var(--skeuo-bar-button-down);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+:root[data-theme="skeuomorphic"] kbd,
+:root[data-theme="skeuomorphic"] button.tool[aria-pressed="true"] kbd {
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.4);
+  text-shadow: none;
+}
+:root[data-theme="skeuomorphic"] select.theme-select {
+  appearance: none;
+  padding: 5px 24px 5px 10px;
+  background:
+    url("./chevron-light.svg") right 8px center / 8px 12px no-repeat,
+    var(--skeuo-grain),
+    var(--skeuo-bar-button);
+}
+:root[data-theme="skeuomorphic"] select.theme-select option {
+  color: #000;
+  text-shadow: none;
+}
+
+/* ---------- switches (Performance mode and every checkbox) ---------- */
+
+:root[data-theme="skeuomorphic"] .mode-toggle::before,
+:root[data-theme="skeuomorphic"] input[type="checkbox"] {
+  width: 54px;
+  height: 22px;
+  border-radius: 11px;
+  background:
+    var(--skeuo-knob) 0 50% / 22px 22px no-repeat,
+    url("./switch-off.svg") right 5px center / 26px 14px no-repeat,
+    linear-gradient(#d9d9d9, #fbfbfb);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.3),
+    inset 0 2px 3px rgba(0, 0, 0, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.5);
+}
+:root[data-theme="skeuomorphic"] .mode-toggle[aria-pressed="true"]::before,
+:root[data-theme="skeuomorphic"] input[type="checkbox"]:checked {
+  background:
+    var(--skeuo-knob) 100% 50% / 22px 22px no-repeat,
+    url("./switch-on.svg") left 6px center / 26px 14px no-repeat,
+    linear-gradient(#1a59c9, #4b92f2);
+}
+:root[data-theme="skeuomorphic"] input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  margin: 0;
+  cursor: pointer;
+  /* label first, switch after it, as in an iOS settings row */
+  order: 1;
+}
+:root[data-theme="skeuomorphic"] .group > .check input[type="checkbox"] {
+  margin-left: auto;
+}
+:root[data-theme="skeuomorphic"] .mode-toggle.ready::before,
+:root[data-theme="skeuomorphic"] input[type="checkbox"] {
+  transition: background-position 0.15s;
+}
+
+/* ---------- panels: pinstripes with white grouped cards ---------- */
+
+:root[data-theme="skeuomorphic"] .layout {
+  gap: 10px;
+  padding: 10px;
+}
+:root[data-theme="skeuomorphic"] .panel {
+  background: var(--skeuo-pinstripes);
+  border: 1px solid #23272d;
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 3px 10px rgba(0, 0, 0, 0.55);
+}
+:root[data-theme="skeuomorphic"] .panel-body {
+  padding: 34px 12px 16px;
+  gap: 38px;
+}
+:root[data-theme="skeuomorphic"] .group,
+:root[data-theme="skeuomorphic"] .card,
+:root[data-theme="skeuomorphic"] .facts {
+  position: relative;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #abb2ba;
+  border-radius: 10px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+/* section titles sit above their card, embossed into the stripes */
+:root[data-theme="skeuomorphic"] .group > h3 {
+  position: absolute;
+  left: 8px;
+  bottom: 100%;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+  text-shadow: var(--skeuo-emboss);
+}
+/* rows of switches read as table cells */
+:root[data-theme="skeuomorphic"] .group > .check {
+  min-height: 26px;
+}
+:root[data-theme="skeuomorphic"] .group > .check + .check {
+  border-top: 1px solid #e0e0e0;
+  padding-top: 8px;
+}
+:root[data-theme="skeuomorphic"] .tasks-box summary,
+:root[data-theme="skeuomorphic"] .facts summary {
+  color: var(--text);
+}
+:root[data-theme="skeuomorphic"] .group .hint,
+:root[data-theme="skeuomorphic"] .card .hint,
+:root[data-theme="skeuomorphic"] .facts .hint {
+  color: #6d6d72;
+}
+
+/* inspector cards get a header strip */
+:root[data-theme="skeuomorphic"] .inspector {
+  padding: 14px 12px 16px;
+  gap: 14px;
+}
+:root[data-theme="skeuomorphic"] .card-title {
+  margin: -10px -12px 8px;
+  padding: 7px 12px;
+  color: #2b3445;
+  text-shadow: 0 1px 0 #fff;
+  background: var(--skeuo-grain), linear-gradient(#fafbfc, #e2e6eb);
+  border-bottom: 1px solid #c8ccd2;
+  border-radius: 9px 9px 0 0;
+}
+:root[data-theme="skeuomorphic"] .card.focus .card-title {
+  background: var(--skeuo-grain), linear-gradient(#f3f7fe, #d7e3f7);
+}
+:root[data-theme="skeuomorphic"] .card.selection .card-title {
+  background: var(--skeuo-grain), linear-gradient(#fff7f4, #f5ddd6);
+}
+:root[data-theme="skeuomorphic"] table.sites th,
+:root[data-theme="skeuomorphic"] table.sites td {
+  border-bottom-color: #e0e0e0;
+}
+
+/* ---------- the model column: tool bar, options strip, status bar ---------- */
+
+:root[data-theme="skeuomorphic"] .viewer-col {
+  background: var(--skeuo-strip);
+}
+:root[data-theme="skeuomorphic"] .toolbar {
+  background: var(--skeuo-grain), var(--skeuo-bar);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  border-bottom: 1px solid var(--skeuo-bar-edge);
+}
+:root[data-theme="skeuomorphic"] .tool-options,
+:root[data-theme="skeuomorphic"] .status {
+  color: #3d4452;
+  text-shadow: var(--skeuo-emboss);
+  background:
+    var(--skeuo-brushed) 0 0 / 600px 200px,
+    var(--skeuo-aluminium);
+  border-top: 1px solid rgba(255, 255, 255, 0.8);
+}
+:root[data-theme="skeuomorphic"] .tool-options {
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+}
+:root[data-theme="skeuomorphic"] .tool-options .label,
+:root[data-theme="skeuomorphic"] .tool-options .hint {
+  color: #3d4452;
+}
+:root[data-theme="skeuomorphic"] .viewer {
+  border-block: 1px solid #6f7c8d;
+}
+
+/* ---------- buttons on light surfaces ---------- */
+
+:root[data-theme="skeuomorphic"] .buttons button,
+:root[data-theme="skeuomorphic"] button.small,
+:root[data-theme="skeuomorphic"] button.icon {
+  color: #1f3e74;
+  font-weight: 600;
+  text-shadow: 0 1px 0 #fff;
+  border: 1px solid #9c9c9c;
+  border-radius: 7px;
+  background: var(--skeuo-grain), var(--skeuo-white);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 1px 1px rgba(0, 0, 0, 0.12);
+}
+:root[data-theme="skeuomorphic"] .buttons button:active:not(:disabled),
+:root[data-theme="skeuomorphic"] button.small:active:not(:disabled),
+:root[data-theme="skeuomorphic"] button.icon:active:not(:disabled) {
+  color: #fff;
+  text-shadow: var(--skeuo-engrave);
+  border-color: #1d4ea8;
+  background: var(--skeuo-grain), var(--skeuo-blue-down);
+}
+:root[data-theme="skeuomorphic"] button.primary {
+  color: #fff;
+  font-weight: 700;
+  text-shadow: var(--skeuo-engrave);
+  border: 1px solid #1d4ea8;
+  border-radius: 7px;
+  background: var(--skeuo-grain), var(--skeuo-blue);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 1px rgba(0, 0, 0, 0.2);
+}
+:root[data-theme="skeuomorphic"] button.primary:active {
+  background: var(--skeuo-grain), var(--skeuo-blue-down);
+}
+:root[data-theme="skeuomorphic"] button.danger,
+:root[data-theme="skeuomorphic"] button.danger:hover {
+  color: #fff;
+  text-shadow: var(--skeuo-engrave);
+  border-color: #86171a;
+  background: var(--skeuo-grain), var(--skeuo-red);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 1px rgba(0, 0, 0, 0.2);
+}
+:root[data-theme="skeuomorphic"] button.danger:active {
+  filter: brightness(0.88);
+}
+
+/* segmented controls on light surfaces (Hard sphere / Sparse, Off / Section / Cutaway, hide groups) */
+:root[data-theme="skeuomorphic"] .segmented {
+  border: 1px solid #8d8d8d;
+  border-radius: 7px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+:root[data-theme="skeuomorphic"] .segmented button {
+  color: var(--muted);
+  font-weight: 700;
+  text-shadow: 0 1px 0 #fff;
+  background: var(--skeuo-grain), var(--skeuo-white);
+}
+:root[data-theme="skeuomorphic"] .segmented button + button {
+  border-left-color: #a3a3a3;
+}
+:root[data-theme="skeuomorphic"] .segmented button.on {
+  color: #fff;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.35);
+  background: var(--skeuo-grain), var(--skeuo-blue-down);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- fields ---------- */
+
+:root[data-theme="skeuomorphic"] select {
+  appearance: none;
+  padding: 3px 22px 3px 8px;
+  color: var(--text);
+  border: 1px solid #9c9c9c;
+  border-radius: 6px;
+  background:
+    url("./chevron.svg") right 7px center / 8px 12px no-repeat,
+    var(--skeuo-white);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+:root[data-theme="skeuomorphic"] .card .num {
+  width: 40px;
+}
+:root[data-theme="skeuomorphic"] .card select {
+  padding-left: 6px;
+  padding-right: 18px;
+  background-position:
+    right 5px center,
+    0 0;
+}
+/* the themed fields are a little wider: let a full row wrap rather than overflow its card */
+:root[data-theme="skeuomorphic"] .card .row {
+  flex-wrap: wrap;
+}
+:root[data-theme="skeuomorphic"] .num {
+  border: 1px solid #9c9c9c;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* sliders: an inset groove and a glossy knob */
+:root[data-theme="skeuomorphic"] input[type="range"] {
+  appearance: none;
+  height: 24px;
+  background: none;
+}
+:root[data-theme="skeuomorphic"] input[type="range"]::-webkit-slider-runnable-track {
+  height: 9px;
+  border: 1px solid #8e8e8e;
+  border-radius: 5px;
+  background: linear-gradient(#c4c4c4, #f7f7f7);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme="skeuomorphic"] input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -7.5px;
+  border: 1px solid #9a9a9a;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, #fff, #e6e6e6 60%, #c6c6c6);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+:root[data-theme="skeuomorphic"] input[type="range"]::-moz-range-track {
+  height: 9px;
+  border: 1px solid #8e8e8e;
+  border-radius: 5px;
+  background: linear-gradient(#c4c4c4, #f7f7f7);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme="skeuomorphic"] input[type="range"]::-moz-range-progress {
+  height: 9px;
+  border-radius: 5px;
+  background: var(--skeuo-blue-down);
+}
+:root[data-theme="skeuomorphic"] input[type="range"]::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #9a9a9a;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, #fff, #e6e6e6 60%, #c6c6c6);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- help: a dark-framed popover over a darkened, vignetted page ---------- */
+
+:root[data-theme="skeuomorphic"] .help {
+  background: radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.7));
+}
+:root[data-theme="skeuomorphic"] .help-box {
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 6px #2a3a52,
+    0 0 0 7px rgba(255, 255, 255, 0.3),
+    0 16px 40px rgba(0, 0, 0, 0.65);
+}

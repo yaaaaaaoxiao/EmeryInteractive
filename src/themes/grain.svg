@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160">
+  <!-- a faint grain laid over the bars and buttons, so they read as a material rather than flat colour -->
+  <filter id="dark" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="7" stitchTiles="stitch"/>
+    <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.45 0 0 0 -0.17"/>
+  </filter>
+  <filter id="light" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="11" stitchTiles="stitch"/>
+    <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.45 0 0 0 -0.17"/>
+  </filter>
+  <rect width="160" height="160" filter="url(#dark)"/>
+  <rect width="160" height="160" filter="url(#light)"/>
+</svg>

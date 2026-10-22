@@ -337,3 +337,18 @@ test('the facts panel shows its formulas', async ({ page }) => {
   await expect(facts.locator('.katex-display')).toHaveCount(4);
   await expect(facts).toContainText('Atomic packing factor');
 });
+
+test('the theme can be switched and is remembered on this device', async ({ page }) => {
+  const errors = await open(page);
+  const html = page.locator('html');
+  const theme = page.getByLabel('Theme', { exact: true });
+  await expect(html).not.toHaveAttribute('data-theme');
+  await theme.selectOption('ios6');
+  await expect(html).toHaveAttribute('data-theme', 'ios6');
+  await page.reload();
+  await expect(html).toHaveAttribute('data-theme', 'ios6');
+  await expect(theme).toHaveValue('ios6');
+  await theme.selectOption('standard');
+  await expect(html).not.toHaveAttribute('data-theme');
+  expect(errors).toEqual([]);
+});

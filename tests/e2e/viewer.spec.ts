@@ -343,13 +343,18 @@ test('the theme can be switched and is remembered on this device', async ({ page
   const html = page.locator('html');
   const theme = page.getByLabel('Theme', { exact: true });
   await expect(html).not.toHaveAttribute('data-theme');
-  await theme.selectOption('ios6');
-  await expect(html).toHaveAttribute('data-theme', 'ios6');
+  await theme.selectOption('skeuomorphic');
+  await expect(html).toHaveAttribute('data-theme', 'skeuomorphic');
   await page.reload();
-  await expect(html).toHaveAttribute('data-theme', 'ios6');
-  await expect(theme).toHaveValue('ios6');
+  await expect(html).toHaveAttribute('data-theme', 'skeuomorphic');
+  await expect(theme).toHaveValue('skeuomorphic');
   await theme.selectOption('standard');
   await expect(html).not.toHaveAttribute('data-theme');
+  // a choice saved under the theme's first name still works
+  await page.evaluate(() => localStorage.setItem('crystalview.theme', 'ios6'));
+  await page.reload();
+  await expect(html).toHaveAttribute('data-theme', 'skeuomorphic');
+  await expect(theme).toHaveValue('skeuomorphic');
   expect(errors).toEqual([]);
 });
 

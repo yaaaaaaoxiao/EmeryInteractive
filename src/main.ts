@@ -1,6 +1,6 @@
 import 'katex/dist/katex.min.css';
 import './styles.css';
-import './themes/ios6.css';
+import './themes/skeuomorphic.css';
 import { STRUCTURES, type StructureId } from './crystal/structures';
 import { buildScene } from './scene/build';
 import { LOOKS, savedGraphics, saveGraphics } from './scene/look';

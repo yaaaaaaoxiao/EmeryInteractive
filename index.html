@@ -7,7 +7,8 @@
     <!-- the saved theme (src/ui/theme.ts), applied before the page is drawn -->
     <script>
       try {
-        if (localStorage.getItem('crystalview.theme') === 'ios6') document.documentElement.dataset.theme = 'ios6';
+        const theme = localStorage.getItem('crystalview.theme');
+        if (theme === 'skeuomorphic' || theme === 'ios6') document.documentElement.dataset.theme = 'skeuomorphic';
       } catch {}
     </script>
   </head>
@@ -31,7 +32,7 @@
       </button>
       <select id="theme-select" class="theme-select" aria-label="Theme" title="The look of the page (remembered on this device)">
         <option value="standard">Standard theme</option>
-        <option value="ios6">iOS 6 theme</option>
+        <option value="skeuomorphic">Skeuomorphic theme</option>
       </select>
       <button type="button" id="help-open" class="help-button">Help</button>
     </header>

@@ -230,3 +230,34 @@ describe('materials', () => {
     expect(meshes(cutaway).some((m) => a.has(m.material as THREE.Material))).toBe(false);
   });
 });
+
+describe('cell edges', () => {
+  // every line in the scene, by how it's drawn
+  const lineSets = (state: State) => {
+    const out: { segments: number; dashed: boolean; behind: boolean }[] = [];
+    buildScene(state, noop).group.traverse((o) => {
+      const line = o as THREE.Mesh & { isLineSegments2?: boolean };
+      if (!line.isLineSegments2) return;
+      const m = line.material as THREE.Material & { dashed: boolean };
+      out.push({
+        segments: (line.geometry as THREE.InstancedBufferGeometry).getAttribute('instanceStart').count,
+        dashed: m.dashed,
+        behind: m.depthFunc === THREE.GreaterDepth,
+      });
+    });
+    return out;
+  };
+
+  it('one cell: just the box, solid, and faint and dashed where hidden', () => {
+    expect(lineSets(defaultState())).toEqual([
+      { segments: 12, dashed: false, behind: false },
+      { segments: 12, dashed: true, behind: true },
+    ]);
+  });
+
+  it('2×2×2: each inner boundary segment once, dashed, none along the outside edges', () => {
+    // 54 cell-edge segments in a 2×2×2 block, 24 of them on its 12 outside edges
+    const inner = lineSets({ ...defaultState(), repeat: [2, 2, 2] }).filter((s) => s.dashed && !s.behind);
+    expect(inner.map((s) => s.segments)).toEqual([30]);
+  });
+});

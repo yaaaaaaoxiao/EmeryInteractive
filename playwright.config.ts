@@ -9,6 +9,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // GitHub's machines draw WebGL in software and run these several times slower than a laptop, so allow more time
+  // there (a test that really hangs still fails within the default 30 s here)
+  timeout: process.env.CI ? 60_000 : 30_000,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://localhost:${port}`,

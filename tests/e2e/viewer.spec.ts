@@ -445,3 +445,24 @@ test('Save image downloads a large PNG of the view', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Save image (PNG)' })).toBeEnabled();
   expect(errors).toEqual([]);
 });
+
+test('the axes are a triad in the corner that turns with the model', async ({ page }) => {
+  const errors = await open(page);
+  const viewer = (await page.locator('#viewer').boundingBox())!;
+  const labels = page.locator('#viewer .scene-label.axis');
+  await expect(labels).toHaveText(['x', 'y', 'z']);
+  const where = () => labels.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => [r.x, r.y]));
+  const before = await where();
+  // all three in the bottom-left corner
+  for (const [x, y] of before) {
+    expect(x - viewer.x).toBeLessThan(140);
+    expect(viewer.y + viewer.height - y).toBeLessThan(140);
+  }
+  // turning the model turns the triad
+  await page.mouse.move(viewer.x + viewer.width / 2, viewer.y + viewer.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(viewer.x + viewer.width / 2 + 200, viewer.y + viewer.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(where).not.toEqual(before);
+  expect(errors).toEqual([]);
+});

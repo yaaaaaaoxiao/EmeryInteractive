@@ -16,9 +16,11 @@ export const COLORS = {
   highlight: 0xff6347,
   slice: 0x9fe3e3,
   bond: 0x777777,
-  cellEdge: 0xc8c8c8,
-  outerEdge: 0x111111,
-  axes: [0xff8c00, 0x5aa800, 0x1e90ff],
+  // boundaries between repeated cells, and the outside of the block
+  cellEdge: 0x8c8c8c,
+  outerEdge: 0x2b2b2b,
+  // x, y, z in the corner triad (see triad.ts): red, green, blue, as is the convention
+  axes: [0xeb4c46, 0x65c466, 0x3478f6],
 };
 
 const SPARSE_SCALE = 0.25;
@@ -212,11 +214,37 @@ function planeSheet(plane: THREE.Plane, repeat: Vec3, color: number, opacity: nu
 
 //////////////// small helpers
 
+interface LineOptions {
+  // in page pixels, on screen and in a saved image alike
+  width?: number;
+  // dashes this long (in units of a), 0 for a solid line
+  dash?: number;
+  opacity?: number;
+  // only the parts hidden behind something else
+  behind?: boolean;
+}
+
 // Line segments (x1, y1, z1, x2, y2, z2, ...) drawn as thin meshes ("fat lines"): WebGL draws real lines 1 pixel
-// wide at any size, so they'd become hairlines in a large saved image. The viewer sets their width (see
-// Viewer.sizeLines).
-function lines(positions: ArrayLike<number>, color: number): LineSegments2 {
-  return new LineSegments2(new LineSegmentsGeometry().setPositions(Array.from(positions)), new LineMaterial({ color }));
+// wide at any size, so they'd become hairlines in a large saved image, and can't be thicker or dashed.
+function lines(
+  positions: ArrayLike<number>,
+  color: number,
+  { width = 1, dash = 0, opacity = 1, behind = false }: LineOptions = {},
+): LineSegments2 {
+  const material = new LineMaterial({
+    color,
+    linewidth: width,
+    dashed: dash > 0,
+    dashSize: dash,
+    gapSize: dash * 0.8,
+    opacity,
+    transparent: opacity < 1,
+    depthWrite: opacity === 1 && !behind,
+    depthFunc: behind ? THREE.GreaterDepth : THREE.LessEqualDepth,
+  });
+  const line = new LineSegments2(new LineSegmentsGeometry().setPositions(Array.from(positions)), material);
+  if (dash) line.computeLineDistances();
+  return line;
 }
 
 // three.js's arrow, with its 1-pixel shaft replaced by a fat line
@@ -229,7 +257,7 @@ function arrowWithShaft(
   headWidth: number,
 ): THREE.ArrowHelper {
   const arrow = new THREE.ArrowHelper(dir, origin, length, color, headLength, headWidth);
-  const shaft = lines([0, 0, 0, 0, 1, 0], color);
+  const shaft = lines([0, 0, 0, 0, 1, 0], color, { width: 1.5 });
   shaft.scale.copy(arrow.line.scale);
   arrow.remove(arrow.line);
   (arrow.line.material as THREE.Material).dispose();
@@ -504,9 +532,8 @@ export function buildScene(state: State, callbacks: BuildCallbacks): Built {
     }
   }
 
-  //////// cell edges, axes and the lattice parameter
+  //////// cell edges (the axes are a triad in the corner of the view, see triad.ts)
   group.add(cellEdges(repeat));
-  group.add(axes(repeat));
 
   return { group, pickables };
 }
@@ -530,40 +557,45 @@ function directionArrow(from: Vec3, vector: Vec3, uvw: Vec3): THREE.Group {
   return group;
 }
 
+// how far outside the cell the edges are drawn, so the filled cuts on the cell faces don't hide them
+const EDGE_OUTSET = 0.003;
+
 function cellEdges(repeat: Vec3): THREE.Group {
   const group = new THREE.Group();
+  // a point on the block's boundary, moved a hair outward on each axis where it lies on the boundary
+  const outset = (p: Vec3, on: boolean[]) => p.map((v, axis) => (on[axis] ? (v === 0 ? -EDGE_OUTSET : v + EDGE_OUTSET) : v));
+
+  // boundaries between repeated cells: lighter, dashed and thinner than the outside of the block (each segment once,
+  // and none along the block's own edges)
   const inner: number[] = [];
+  const seen = new Set<string>();
+  const box = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)).getAttribute('position');
   for (let i = 0; i < repeat[0]; i++)
     for (let j = 0; j < repeat[1]; j++)
-      for (let k = 0; k < repeat[2]; k++) {
-        const g = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
-        const p = g.getAttribute('position');
-        for (let n = 0; n < p.count; n++) inner.push(p.getX(n) + i + 0.5, p.getY(n) + j + 0.5, p.getZ(n) + k + 0.5);
-      }
-  if (repeat.some((v) => v > 1)) group.add(lines(inner, COLORS.cellEdge));
-  // drawn a hair outside the cell so the filled cuts on the cell faces don't hide it
-  const box = new THREE.EdgesGeometry(new THREE.BoxGeometry(...(repeat.map((v) => v + 0.006) as Vec3)));
-  const outer = lines(box.getAttribute('position').array, COLORS.outerEdge);
-  outer.position.copy(v3(repeat).multiplyScalar(0.5));
-  group.add(outer);
+      for (let k = 0; k < repeat[2]; k++)
+        for (let n = 0; n < box.count; n += 2) {
+          const a: Vec3 = [box.getX(n) + i + 0.5, box.getY(n) + j + 0.5, box.getZ(n) + k + 0.5];
+          const b: Vec3 = [box.getX(n + 1) + i + 0.5, box.getY(n + 1) + j + 0.5, box.getZ(n + 1) + k + 0.5];
+          const on = a.map((v, axis) => (v === 0 || v === repeat[axis]) && v === b[axis]);
+          const key = [a, b]
+            .map((p) => p.join())
+            .sort()
+            .join('|');
+          if (on.filter(Boolean).length >= 2 || seen.has(key)) continue;
+          seen.add(key);
+          inner.push(...outset(a, on), ...outset(b, on));
+        }
+  if (inner.length) group.add(lines(inner, COLORS.cellEdge, { width: 1, dash: 0.06 }));
 
-  // the lattice parameter a, on one vertical edge
-  group.add(lines([1.003, 1.003, 0, 1.003, 1.003, 1], 0xd00000));
-  const a = label('a', 'scene-label lattice');
-  a.position.set(1.06, 1.06, 0.5);
-  group.add(a);
-  return group;
-}
-
-function axes(repeat: Vec3): THREE.Group {
-  const group = new THREE.Group();
-  const length = Math.max(...repeat) + 0.5;
-  ['x', 'y', 'z'].forEach((name, axis) => {
-    const dir = new THREE.Vector3().setComponent(axis, 1);
-    group.add(arrowWithShaft(dir, new THREE.Vector3(), length, COLORS.axes[axis], 0.1, 0.05));
-    const l = label(name, 'scene-label axis');
-    l.position.copy(dir.multiplyScalar(length + 0.12));
-    group.add(l);
-  });
+  // the outside of the block; where atoms hide it, it's drawn faint and dashed, so it still reads as a box
+  const outer = new THREE.EdgesGeometry(new THREE.BoxGeometry(...(repeat.map((v) => v + 2 * EDGE_OUTSET) as Vec3)));
+  const positions = outer.getAttribute('position').array;
+  for (const line of [
+    lines(positions, COLORS.outerEdge, { width: 1.5 }),
+    lines(positions, COLORS.outerEdge, { width: 0.75, dash: 0.04, opacity: 0.18, behind: true }),
+  ]) {
+    line.position.copy(v3(repeat).multiplyScalar(0.5));
+    group.add(line);
+  }
   return group;
 }

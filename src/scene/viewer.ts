@@ -3,12 +3,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { Vec3 } from '../crystal/structures';
 import type { Built, PickTarget } from './build';
 import type { Look } from './look';
 import { captureView } from './snapshot';
+import { AxisTriad } from './triad';
 
 const DEFAULT_VIEW = new THREE.Vector3(3.65, 1.95, 1.66).normalize();
 // a site counts as clicked if the pointer is this close to its centre (in CSS pixels), even if it's tiny
@@ -17,11 +17,6 @@ const SITE_TOLERANCE_PX = 12;
 const REPEAT_CLICK_PX = 6;
 // neighbours in front of the neighbors tool's centre fade to this, so you can see into the cage
 const XRAY_OPACITY = 0.18;
-
-// line widths, in page pixels: on screen one screen pixel, as WebGL draws lines (½ a page pixel on a 2× display);
-// in a saved image the same on every computer, and enough to stay visible when the image is shrunk for a slide
-const SCREEN_LINE_WIDTH = () => 1 / window.devicePixelRatio;
-const IMAGE_LINE_WIDTH = 0.75;
 
 export class Viewer {
   readonly renderer: THREE.WebGLRenderer;
@@ -47,8 +42,7 @@ export class Viewer {
   private needsRender = true;
   // neighbours that fade when in front of the neighbors tool's centre (collected once per scene, see show())
   private xrayMeshes: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>[] = [];
-  // the scene's lines, whose width the viewer sets (see sizeLines)
-  private lineMaterials: LineMaterial[] = [];
+  private triad: AxisTriad;
   private blockSize: Vec3 = [1, 1, 1];
   private lastPick: { x: number; y: number; keys: string[]; index: number } | null = null;
   // in the neighbours tool, interstitial sites are picked before the atoms in front of them
@@ -68,6 +62,10 @@ export class Viewer {
 
     this.labelRenderer.domElement.className = 'label-layer';
     container.appendChild(this.labelRenderer.domElement);
+    const triadLabels = document.createElement('div');
+    triadLabels.className = 'label-layer';
+    container.appendChild(triadLabels);
+    this.triad = new AxisTriad(triadLabels);
 
     this.scene.background = new THREE.Color(0xffffff);
     this.scene.add(this.fill);
@@ -139,11 +137,8 @@ export class Viewer {
     }
     this.scene.add(built.group);
     this.xrayMeshes = [];
-    this.lineMaterials = [];
     built.group.traverse((o) => {
       if (o.userData.xray) this.xrayMeshes.push(o as THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>);
-      const { material } = o as THREE.Mesh;
-      if (material instanceof LineMaterial) this.lineMaterials.push(material);
     });
     this.requestRender();
     // so clicks right after a rebuild hit the new objects where they are
@@ -313,21 +308,23 @@ export class Viewer {
 
   // the current view as a large PNG, labels included (see snapshot.ts)
   snapshot(): Promise<Blob> {
-    const draw = (lineWidth: number) => {
-      this.updateXray();
-      this.sizeLines(lineWidth);
-      this.renderer.render(this.scene, this.camera);
-    };
     return captureView(
       this.renderer,
-      this.labelRenderer.domElement,
-      () => draw(IMAGE_LINE_WIDTH),
+      this.container,
+      () => this.draw(),
       () => {
         this.resize();
         // redraw at once, so the view on screen is never blank
-        draw(SCREEN_LINE_WIDTH());
+        this.draw();
       },
     );
+  }
+
+  // the model, then the axis triad in its corner
+  private draw(): void {
+    this.updateXray();
+    this.renderer.render(this.scene, this.camera);
+    this.triad.render(this.renderer, this.camera);
   }
 
   private resize(): void {
@@ -364,11 +361,6 @@ export class Viewer {
     this.needsRender = true;
   }
 
-  // lines are `width` page pixels wide, at any drawing size (three.js sets their resolution itself, just before drawing)
-  private sizeLines(width = SCREEN_LINE_WIDTH()): void {
-    for (const m of this.lineMaterials) m.linewidth = width;
-  }
-
   // hard-sphere neighbours between the camera and the centre become see-through; those beside and behind it stay
   // solid. Runs before every redraw, so it follows the camera as you rotate.
   private updateXray(): void {
@@ -396,9 +388,7 @@ export class Viewer {
     this.controls.update();
     if (!this.needsRender) return;
     this.needsRender = false;
-    this.updateXray();
-    this.sizeLines();
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
     // (before the labels are drawn, so the old scene's labels are gone too)
     for (const old of this.retired.splice(0)) this.release(old);
     this.labelRenderer.render(this.scene, this.camera);

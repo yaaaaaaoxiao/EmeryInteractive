@@ -9,10 +9,11 @@ const LONG_SIDE = 4096;
 // Safari's largest canvas (4096 × 4096 pixels); other browsers allow more
 const MAX_PIXELS = 4096 * 4096;
 
-// `draw` renders the scene into the renderer's canvas; `restore` puts its size back afterwards
+// `draw` renders the scene into the renderer's canvas; `restore` puts its size back afterwards. `view` is the element
+// holding the canvas and its labels.
 export function captureView(
   renderer: THREE.WebGLRenderer,
-  labelLayer: HTMLElement,
+  view: HTMLElement,
   draw: () => void,
   restore: () => void,
 ): Promise<Blob> {
@@ -37,7 +38,7 @@ export function captureView(
   } finally {
     restore();
   }
-  drawLabels(ctx, labelLayer, canvas.getBoundingClientRect(), image.width / w);
+  drawLabels(ctx, view, canvas.getBoundingClientRect(), image.width / w);
 
   return new Promise((resolve, reject) =>
     image.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('The image could not be made'))), 'image/png'),

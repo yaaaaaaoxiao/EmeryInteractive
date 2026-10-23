@@ -169,6 +169,20 @@ export class LeftPanel {
             ),
           ),
         ),
+        h(
+          'div',
+          {},
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'small',
+              title: 'Download the 3D view as a large PNG image (about 4000 pixels wide), labels included',
+              onclick: (e: Event) => this.saveImage(e.currentTarget as HTMLButtonElement),
+            },
+            'Save image (PNG)',
+          ),
+        ),
         h('p', { class: 'hint' }, 'Drag the model to rotate it. The camera isn’t part of undo.'),
       ),
     ];
@@ -196,6 +210,30 @@ export class LeftPanel {
     );
 
     this.root.replaceChildren(h('div', { class: 'panel-body' }, ...model, ...display, tasks));
+  }
+
+  // download the 3D view as a PNG, named after the structure and the time, e.g. crystalview-fcc-2026-10-22-1405.png
+  private async saveImage(button: HTMLButtonElement): Promise<void> {
+    const text = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    try {
+      const blob = await this.viewer.snapshot();
+      const d = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+      const link = h('a', {
+        href: URL.createObjectURL(blob),
+        download: `crystalview-${this.store.state.structure}-${stamp}.png`,
+      });
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+    } catch (e) {
+      alert(`The image couldn't be saved: ${(e as Error).message}`);
+    } finally {
+      button.disabled = false;
+      button.textContent = text;
+    }
   }
 
   private repeatSelects(): HTMLElement[] {

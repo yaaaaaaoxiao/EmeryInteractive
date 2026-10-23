@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, type Page, test } from '@playwright/test';
 
 type Vec3 = [number, number, number];
@@ -338,25 +339,39 @@ test('the facts panel shows its formulas', async ({ page }) => {
   await expect(facts).toContainText('Atomic packing factor');
 });
 
-test('the theme can be switched and is remembered on this device', async ({ page }) => {
+// (page loads are slow on CI, where Chromium draws WebGL in software, so each of these loads the page only once)
+test('the skeuomorphic theme is the default; the theme can be switched and is saved on this device', async ({ page }) => {
   const errors = await open(page);
   const html = page.locator('html');
   const theme = page.getByLabel('Theme', { exact: true });
-  await expect(html).not.toHaveAttribute('data-theme');
-  await theme.selectOption('skeuomorphic');
-  await expect(html).toHaveAttribute('data-theme', 'skeuomorphic');
-  await page.reload();
+  const saved = () => page.evaluate(() => localStorage.getItem('crystalview.theme'));
   await expect(html).toHaveAttribute('data-theme', 'skeuomorphic');
   await expect(theme).toHaveValue('skeuomorphic');
   await theme.selectOption('standard');
   await expect(html).not.toHaveAttribute('data-theme');
-  // a choice saved under the theme's first name still works
-  await page.evaluate(() => localStorage.setItem('crystalview.theme', 'ios6'));
-  await page.reload();
+  expect(await saved()).toBe('standard');
+  await theme.selectOption('skeuomorphic');
   await expect(html).toHaveAttribute('data-theme', 'skeuomorphic');
-  await expect(theme).toHaveValue('skeuomorphic');
+  expect(await saved()).toBe('skeuomorphic');
   expect(errors).toEqual([]);
 });
+
+// a saved choice is used when the page opens ("ios6" was the skeuomorphic theme's first name)
+for (const [saved, expected] of [
+  ['standard', 'standard'],
+  ['skeuomorphic', 'skeuomorphic'],
+  ['ios6', 'skeuomorphic'],
+]) {
+  test(`a saved theme choice ("${saved}") is used when the page opens`, async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('crystalview.theme', value), saved);
+    const errors = await open(page);
+    const html = page.locator('html');
+    if (expected === 'standard') await expect(html).not.toHaveAttribute('data-theme');
+    else await expect(html).toHaveAttribute('data-theme', expected);
+    await expect(page.getByLabel('Theme', { exact: true })).toHaveValue(expected);
+    expect(errors).toEqual([]);
+  });
+}
 
 test('changing the setup reuses the compiled shaders and still releases the old scene', async ({ page }) => {
   await open(page);
@@ -412,4 +427,21 @@ test('going back to a tool reuses the shaders compiled for it', async ({ page })
     return { seen, after: ids() };
   });
   expect(programs.after).toBe(programs.seen);
+});
+
+test('Save image downloads a large PNG of the view', async ({ page }) => {
+  const errors = await open(page);
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Save image (PNG)' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^crystalview-fcc-\d{4}-\d\d-\d\d-\d{4}\.png$/);
+  const file = await readFile((await download.path()) as string);
+  // a PNG, about 4096 pixels on its long side (its width and height are at bytes 16-23)
+  expect(file.subarray(1, 4).toString()).toBe('PNG');
+  const [width, height] = [file.readUInt32BE(16), file.readUInt32BE(20)];
+  expect(Math.max(width, height)).toBeGreaterThan(3000);
+  // the view on screen is drawn again at its own size afterwards
+  await expect(page.getByRole('button', { name: 'Save image (PNG)' })).toBeEnabled();
+  expect(errors).toEqual([]);
 });

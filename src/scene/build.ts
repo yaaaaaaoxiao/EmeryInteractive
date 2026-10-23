@@ -2,6 +2,9 @@
 
 import * as THREE from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { atomObjects, type CrystalObject, dist, fraction, objectKey, siteObjects } from '../crystal/lattice';
 import { STRUCTURES, type Vec3 } from '../crystal/structures';
@@ -209,6 +212,31 @@ function planeSheet(plane: THREE.Plane, repeat: Vec3, color: number, opacity: nu
 
 //////////////// small helpers
 
+// Line segments (x1, y1, z1, x2, y2, z2, ...) drawn as thin meshes ("fat lines"): WebGL draws real lines 1 pixel
+// wide at any size, so they'd become hairlines in a large saved image. The viewer sets their width (see
+// Viewer.sizeLines).
+function lines(positions: ArrayLike<number>, color: number): LineSegments2 {
+  return new LineSegments2(new LineSegmentsGeometry().setPositions(Array.from(positions)), new LineMaterial({ color }));
+}
+
+// three.js's arrow, with its 1-pixel shaft replaced by a fat line
+function arrowWithShaft(
+  dir: THREE.Vector3,
+  origin: THREE.Vector3,
+  length: number,
+  color: number,
+  headLength: number,
+  headWidth: number,
+): THREE.ArrowHelper {
+  const arrow = new THREE.ArrowHelper(dir, origin, length, color, headLength, headWidth);
+  const shaft = lines([0, 0, 0, 0, 1, 0], color);
+  shaft.scale.copy(arrow.line.scale);
+  arrow.remove(arrow.line);
+  (arrow.line.material as THREE.Material).dispose();
+  arrow.add(shaft);
+  return arrow;
+}
+
 function label(text: string, className = 'scene-label'): CSS2DObject {
   const div = document.createElement('div');
   div.className = className;
@@ -250,11 +278,11 @@ export function polyhedron(points: Vec3[], color: number, opacity: number): THRE
     geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.computeVertexNormals();
-    const outline = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(sorted), new THREE.LineBasicMaterial({ color }));
-    group.add(outline);
+    const loop = sorted.flatMap((v, i) => [...v.toArray(), ...sorted[(i + 1) % sorted.length].toArray()]);
+    group.add(lines(loop, color));
   } else if (vs.length >= 4) {
     geometry = new ConvexGeometry(vs);
-    group.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color })));
+    group.add(lines(new THREE.EdgesGeometry(geometry).getAttribute('position').array, color));
   }
   if (geometry) {
     const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false });
@@ -489,7 +517,7 @@ function directionArrow(from: Vec3, vector: Vec3, uvw: Vec3): THREE.Group {
   const dir = v3(vector);
   const length = dir.length();
   if (length < 1e-6) return group;
-  const arrow = new THREE.ArrowHelper(dir.clone().normalize(), v3(from), length, COLORS.highlight, 0.1, 0.06);
+  const arrow = arrowWithShaft(dir.clone().normalize(), v3(from), length, COLORS.highlight, 0.1, 0.06);
   arrow.traverse((o) => {
     const m = (o as THREE.Mesh).material as THREE.Material | undefined;
     if (m) m.depthTest = false;
@@ -512,25 +540,15 @@ function cellEdges(repeat: Vec3): THREE.Group {
         const p = g.getAttribute('position');
         for (let n = 0; n < p.count; n++) inner.push(p.getX(n) + i + 0.5, p.getY(n) + j + 0.5, p.getZ(n) + k + 0.5);
       }
-  if (repeat.some((v) => v > 1)) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(inner, 3));
-    group.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: COLORS.cellEdge })));
-  }
+  if (repeat.some((v) => v > 1)) group.add(lines(inner, COLORS.cellEdge));
   // drawn a hair outside the cell so the filled cuts on the cell faces don't hide it
-  const outer = new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.BoxGeometry(...(repeat.map((v) => v + 0.006) as Vec3))),
-    new THREE.LineBasicMaterial({ color: COLORS.outerEdge }),
-  );
+  const box = new THREE.EdgesGeometry(new THREE.BoxGeometry(...(repeat.map((v) => v + 0.006) as Vec3)));
+  const outer = lines(box.getAttribute('position').array, COLORS.outerEdge);
   outer.position.copy(v3(repeat).multiplyScalar(0.5));
   group.add(outer);
 
   // the lattice parameter a, on one vertical edge
-  const edge = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(1.003, 1.003, 0), new THREE.Vector3(1.003, 1.003, 1)]),
-    new THREE.LineBasicMaterial({ color: 0xd00000 }),
-  );
-  group.add(edge);
+  group.add(lines([1.003, 1.003, 0, 1.003, 1.003, 1], 0xd00000));
   const a = label('a', 'scene-label lattice');
   a.position.set(1.06, 1.06, 0.5);
   group.add(a);
@@ -542,7 +560,7 @@ function axes(repeat: Vec3): THREE.Group {
   const length = Math.max(...repeat) + 0.5;
   ['x', 'y', 'z'].forEach((name, axis) => {
     const dir = new THREE.Vector3().setComponent(axis, 1);
-    group.add(new THREE.ArrowHelper(dir, new THREE.Vector3(), length, COLORS.axes[axis], 0.1, 0.05));
+    group.add(arrowWithShaft(dir, new THREE.Vector3(), length, COLORS.axes[axis], 0.1, 0.05));
     const l = label(name, 'scene-label axis');
     l.position.copy(dir.multiplyScalar(length + 0.12));
     group.add(l);

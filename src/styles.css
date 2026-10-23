@@ -594,15 +594,11 @@ table.sites th {
   color: var(--text);
   white-space: nowrap;
 }
+/* x, y, z in the corner triad: italic math letters, as in the formulas */
 .scene-label.axis {
-  font-weight: 600;
-  font-size: 15px;
-}
-.scene-label.lattice {
-  color: #d00000;
+  font-family: KaTeX_Math, "Times New Roman", serif;
   font-style: italic;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 18px;
 }
 .scene-label.selected,
 .scene-label.direction,

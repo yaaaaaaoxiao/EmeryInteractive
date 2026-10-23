@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="skeuomorphic">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CrystalView</title>
-    <!-- the saved theme (src/ui/theme.ts), applied before the page is drawn -->
+    <!-- the skeuomorphic theme is the default; a saved choice of the standard one (src/ui/theme.ts) is applied before
+         the page is drawn -->
     <script>
       try {
-        const theme = localStorage.getItem('crystalview.theme');
-        if (theme === 'skeuomorphic' || theme === 'ios6') document.documentElement.dataset.theme = 'skeuomorphic';
+        if (localStorage.getItem('crystalview.theme') === 'standard') delete document.documentElement.dataset.theme;
       } catch {}
     </script>
   </head>
@@ -31,8 +31,8 @@
         Performance mode
       </button>
       <select id="theme-select" class="theme-select" aria-label="Theme" title="The look of the page (remembered on this device)">
-        <option value="standard">Standard theme</option>
         <option value="skeuomorphic">Skeuomorphic theme</option>
+        <option value="standard">Standard theme</option>
       </select>
       <button type="button" id="help-open" class="help-button">Help</button>
     </header>

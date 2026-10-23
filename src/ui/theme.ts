@@ -1,5 +1,6 @@
-// The page's look ("theme"): remembered per device, like Performance mode, and not part of shared links.
-// index.html applies the saved theme before the page is first drawn, so it doesn't flash the standard one.
+// The page's look ("theme"): skeuomorphic unless the standard one was chosen. Remembered per device, like Performance
+// mode, and not part of shared links. index.html applies a saved choice before the page is first drawn, so the
+// page doesn't flash the other theme.
 
 export type Theme = 'standard' | 'skeuomorphic';
 
@@ -7,11 +8,10 @@ const STORAGE_KEY = 'crystalview.theme';
 
 export function savedTheme(): Theme {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    // (it was called "ios6" at first)
-    return saved === 'skeuomorphic' || saved === 'ios6' ? 'skeuomorphic' : 'standard';
+    // (anything else, such as "ios6", the skeuomorphic theme's first name, is the default)
+    return localStorage.getItem(STORAGE_KEY) === 'standard' ? 'standard' : 'skeuomorphic';
   } catch {
-    return 'standard';
+    return 'skeuomorphic';
   }
 }
 

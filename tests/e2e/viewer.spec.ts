@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, type Page, test } from '@playwright/test';
 
 type Vec3 = [number, number, number];
@@ -419,4 +420,21 @@ test('going back to a tool reuses the shaders compiled for it', async ({ page })
     return { seen, after: ids() };
   });
   expect(programs.after).toBe(programs.seen);
+});
+
+test('Save image downloads a large PNG of the view', async ({ page }) => {
+  const errors = await open(page);
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Save image (PNG)' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^crystalview-fcc-\d{4}-\d\d-\d\d-\d{4}\.png$/);
+  const file = await readFile((await download.path()) as string);
+  // a PNG, about 4096 pixels on its long side (its width and height are at bytes 16-23)
+  expect(file.subarray(1, 4).toString()).toBe('PNG');
+  const [width, height] = [file.readUInt32BE(16), file.readUInt32BE(20)];
+  expect(Math.max(width, height)).toBeGreaterThan(3000);
+  // the view on screen is drawn again at its own size afterwards
+  await expect(page.getByRole('button', { name: 'Save image (PNG)' })).toBeEnabled();
+  expect(errors).toEqual([]);
 });

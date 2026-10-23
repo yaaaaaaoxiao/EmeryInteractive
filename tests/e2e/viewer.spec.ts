@@ -338,25 +338,32 @@ test('the facts panel shows its formulas', async ({ page }) => {
   await expect(facts).toContainText('Atomic packing factor');
 });
 
-test('the theme can be switched and is remembered on this device', async ({ page }) => {
+// (page loads are slow on CI, where Chromium draws WebGL in software, so each of these loads the page only once)
+test('the theme can be switched, and the choice is saved on this device', async ({ page }) => {
   const errors = await open(page);
   const html = page.locator('html');
   const theme = page.getByLabel('Theme', { exact: true });
+  const saved = () => page.evaluate(() => localStorage.getItem('crystalview.theme'));
   await expect(html).not.toHaveAttribute('data-theme');
   await theme.selectOption('skeuomorphic');
   await expect(html).toHaveAttribute('data-theme', 'skeuomorphic');
-  await page.reload();
-  await expect(html).toHaveAttribute('data-theme', 'skeuomorphic');
-  await expect(theme).toHaveValue('skeuomorphic');
+  expect(await saved()).toBe('skeuomorphic');
   await theme.selectOption('standard');
   await expect(html).not.toHaveAttribute('data-theme');
-  // a choice saved under the theme's first name still works
-  await page.evaluate(() => localStorage.setItem('crystalview.theme', 'ios6'));
-  await page.reload();
-  await expect(html).toHaveAttribute('data-theme', 'skeuomorphic');
-  await expect(theme).toHaveValue('skeuomorphic');
+  expect(await saved()).toBe('standard');
   expect(errors).toEqual([]);
 });
+
+// "ios6" was the theme's first name
+for (const saved of ['skeuomorphic', 'ios6']) {
+  test(`a saved theme choice ("${saved}") is used when the page opens`, async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('crystalview.theme', value), saved);
+    const errors = await open(page);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'skeuomorphic');
+    await expect(page.getByLabel('Theme', { exact: true })).toHaveValue('skeuomorphic');
+    expect(errors).toEqual([]);
+  });
+}
 
 test('changing the setup reuses the compiled shaders and still releases the old scene', async ({ page }) => {
   await open(page);

@@ -13,6 +13,7 @@ An interactive 3D viewer for cubic crystal structures (FCC, BCC, SC) and their i
 - Click to select atoms/sites; 2 give a direction [u v w], 3 a plane (h k l), 4+ a polyhedron.
 - Repeat the cell in x, y and z; camera presets along [100], [110], [111].
 - Every combination of settings works, and the page URL describes the current setup so it can be shared.
+- Dislocations (on their own page, `dislocations.html`): an edge, screw or mixed dislocation in a block of simple-cubic, FCC or BCC crystal (each on its usual slip system), with its line, Burgers vector, slip plane, extra half-plane (edge) and spiral ramp (screw). The line can be moved through the crystal to show glide, and a Burgers circuit can be walked step by step to find the Burgers vector.
 
 See [docs/SPEC.md](docs/SPEC.md) for how the controls behave.
 
@@ -37,6 +38,7 @@ Code layout:
 - `src/state.ts` — the single state object, its rules, and URL syncing
 - `src/scene/` — builds the three.js scene from the state; renderer, camera and picking
 - `src/ui/` — the controls and information panels
+- `src/dislocation/` — the dislocation page: the block of crystal turned to its slip system (`crystal.ts`), atom positions from the elastic displacement field (`field.ts`), its scene, state and panels
 - `public/legacy/` — the original version of the site, served unchanged at `legacy/`
 - `tests/` — unit tests (Vitest); `tests/e2e/` — browser tests (Playwright)
 

@@ -1,0 +1,81 @@
+/* The dislocation page. Everything shared with the main page (layout, panels, buttons, themes) is in styles.css. */
+
+/* the two groups of tabs in the top bar, each with a small caption saying what it chooses */
+.tab-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tab-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+:root[data-theme="skeuomorphic"] .tab-label {
+  color: #1b2636;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+@media (max-width: 1000px) {
+  .tab-label {
+    display: none;
+  }
+}
+
+/* tags on the line, the Burgers vector and the circuit's ends; their colour is set to match what they name */
+.scene-label.note {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 12px;
+}
+/* b, as in the formulas: a bold italic vector */
+.scene-label.note.math,
+b.math {
+  font-family: KaTeX_Math, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 700;
+}
+.scene-label.note.math {
+  font-size: 16px;
+}
+b.math {
+  font-size: 1.1em;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.legend .swatch {
+  margin-left: 4px;
+}
+.check.off {
+  color: var(--muted);
+}
+/* the sides of the Burgers circuit: walked ones are ticked, the one being walked stands out */
+ol.legs {
+  margin: 6px 0;
+  padding-left: 22px;
+}
+ol.legs li.done {
+  color: var(--muted);
+}
+ol.legs li.done::after {
+  content: " ✓";
+}
+ol.legs li.current {
+  font-weight: 600;
+  color: var(--accent);
+}
+ul.facts-list {
+  list-style: none;
+  padding-left: 0;
+}
+ul.facts-list li + li {
+  margin-top: 2px;
+}

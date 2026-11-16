@@ -6,8 +6,12 @@ export default defineConfig({
   base: './',
   // the info panel's formulas are rendered to HTML at build time (no KaTeX library in the page)
   plugins: [formulasPlugin()],
-  // three.js is most of the bundle; that's expected for this app
-  build: { chunkSizeWarningLimit: 1000 },
+  build: {
+    // three.js is most of the bundle; that's expected for this app
+    chunkSizeWarningLimit: 1000,
+    // two pages: the crystal structures, and the dislocations
+    rolldownOptions: { input: ['index.html', 'dislocations.html'] },
+  },
   // unit tests only; browser tests in tests/e2e run with Playwright
   test: { include: ['tests/**/*.test.ts'] },
 });

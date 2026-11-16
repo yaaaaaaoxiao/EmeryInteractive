@@ -82,6 +82,20 @@ body {
   font-weight: 500;
   flex: none;
 }
+/* the link between the two pages (crystal structures and dislocations) */
+.page-link {
+  flex: none;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.page-link:hover {
+  text-decoration: underline;
+}
+.logo a {
+  display: block;
+}
 .header-credit {
   margin: 0 0 0 auto;
   text-align: right;
@@ -208,9 +222,11 @@ body {
   .help-button {
     margin-left: auto;
   }
-  /* the Performance mode switch, then the credit, get their own lines under the tabs */
+  /* the Performance mode switch, then the credit, get their own lines under the tabs
+     (with the link to the other page, so the logo, tabs and Help stay on one row) */
   .mode-toggle,
-  .theme-select {
+  .theme-select,
+  .page-link {
     order: 1;
   }
   .mode-toggle {

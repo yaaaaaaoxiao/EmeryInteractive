@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" data-theme="skeuomorphic">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dislocations · CrystalView</title>
+    <!-- as in index.html: a saved choice of the standard theme is applied before the page is drawn -->
+    <script>
+      try {
+        if (localStorage.getItem('crystalview.theme') === 'standard') delete document.documentElement.dataset.theme;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <header class="topbar">
+      <h1 class="logo">
+        <a href="./" title="Back to the crystal structures"><img src="/crystalview-logo.svg" alt="CrystalView Beta" width="2638" height="368" /></a>
+      </h1>
+      <div class="tab-group">
+        <span class="tab-label" id="kind-label">Dislocation</span>
+        <nav class="tabs" aria-labelledby="kind-label">
+          <button type="button" data-kind="edge">Edge</button>
+          <button type="button" data-kind="screw">Screw</button>
+          <button type="button" data-kind="mixed">Mixed</button>
+        </nav>
+      </div>
+      <div class="tab-group">
+        <span class="tab-label" id="structure-label">Crystal</span>
+        <nav class="tabs" aria-labelledby="structure-label">
+          <button type="button" data-structure="sc">SC</button>
+          <button type="button" data-structure="fcc">FCC</button>
+          <button type="button" data-structure="bcc">BCC</button>
+        </nav>
+      </div>
+      <a class="page-link" href="./">← Crystal structures</a>
+      <p class="credit header-credit">Dislocations in cubic crystals.</p>
+      <button
+        type="button"
+        id="graphics-toggle"
+        class="mode-toggle"
+        aria-pressed="false"
+        title="Simpler, faster graphics for older or slower computers"
+      >
+        Performance mode
+      </button>
+      <select id="theme-select" class="theme-select" aria-label="Theme" title="The look of the page (remembered on this device)">
+        <option value="skeuomorphic">Skeuomorphic theme</option>
+        <option value="standard">Standard theme</option>
+      </select>
+    </header>
+
+    <main class="layout">
+      <!-- where the line is, and how the crystal is drawn -->
+      <aside id="left" class="panel side" aria-label="Controls"></aside>
+      <section class="panel viewer-col" aria-label="3D model">
+        <div id="viewer" class="viewer"></div>
+      </section>
+      <!-- what this dislocation is, and what to look for -->
+      <aside id="inspector" class="panel inspector" aria-label="About this dislocation"></aside>
+    </main>
+
+    <script type="module" src="/src/dislocation/main.ts"></script>
+  </body>
+</html>

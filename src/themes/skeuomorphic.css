@@ -73,6 +73,11 @@
 :root[data-theme="skeuomorphic"] .mode-toggle {
   font-weight: 600;
 }
+/* the link between the two pages (blue would be lost on the blue-grey bar) */
+:root[data-theme="skeuomorphic"] .page-link {
+  color: #14233a;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+}
 
 /* bar buttons: FCC/BCC/SC (one segmented control), the tools, Undo/Redo/Reset, Help and the theme picker */
 :root[data-theme="skeuomorphic"] .tabs {

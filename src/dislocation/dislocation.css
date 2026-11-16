@@ -54,6 +54,10 @@ b.math {
 .legend .swatch {
   margin-left: 4px;
 }
+/* a remark under the legend's colours, on a line of its own */
+.legend-note {
+  flex-basis: 100%;
+}
 .check.off {
   color: var(--muted);
 }

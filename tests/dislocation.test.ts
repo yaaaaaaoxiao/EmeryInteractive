@@ -20,6 +20,7 @@ import {
   rampLayers,
   rampOf,
   rampTurn,
+  screwShear,
   slippedFraction,
   startPosition,
 } from '../src/dislocation/field';
@@ -81,6 +82,25 @@ describe('displacement field', () => {
       const duz = (displacement(X, Z + h, 1, 0)[2] - displacement(X, Z - h, 1, 0)[2]) / (2 * h);
       expect(dux + duz).toBeCloseTo(dilatation(X, Z, 1), 6);
     }
+  });
+
+  it('shears the crystal around a screw by b / 2πr (checked against the slope of the displacement)', () => {
+    const h = 1e-6;
+    for (const [X, Z] of [
+      [1, 0.5],
+      [-2, 1.5],
+      [0.3, -0.5],
+      [3, -2.5],
+    ]) {
+      const slopeX = (displacement(X + h, Z, 0, -1)[1] - displacement(X - h, Z, 0, -1)[1]) / (2 * h);
+      const slopeZ = (displacement(X, Z + h, 0, -1)[1] - displacement(X, Z - h, 0, -1)[1]) / (2 * h);
+      expect(Math.hypot(slopeX, slopeZ)).toBeCloseTo(screwShear(X, Z, -1), 6);
+      // and changes no volume
+      expect(dilatation(X, Z, 0)).toBeCloseTo(0, 12);
+    }
+    // the same all around the line, halving when the distance doubles
+    expect(screwShear(0, 2, 1)).toBeCloseTo(screwShear(2, 0, 1), 12);
+    expect(screwShear(4, 0, 1)).toBeCloseTo(screwShear(2, 0, 1) / 2, 12);
   });
 
   it('compresses the side with the extra half-plane and stretches the other', () => {

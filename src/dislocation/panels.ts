@@ -124,7 +124,14 @@ export class Panels {
     const legend = h('p', { class: 'hint legend' });
     this.syncers.push((s) => {
       legend.hidden = s.coloring === 'plain';
-      if (s.coloring === 'strain') {
+      if (s.coloring === 'strain' && crystalOf(configOf(s)).burgers[0] === 0) {
+        // a pure screw: no volume change to show, so the colour is its shear
+        legend.replaceChildren(
+          swatch(COLORS.shear),
+          'sheared',
+          h('span', { class: 'legend-note' }, 'A screw dislocation squeezes and stretches nothing.'),
+        );
+      } else if (s.coloring === 'strain') {
         legend.replaceChildren(swatch(COLORS.compression), 'squeezed ', swatch(COLORS.tension), 'stretched');
       } else if (s.coloring === 'planes') {
         legend.replaceChildren(
@@ -338,6 +345,7 @@ function describe(state: DislocationState): HTMLElement[] {
       'Follow the ramp around the line: after one full turn you are one Burgers vector further along it.',
       'Press From the side: the ramp is a screw thread, which is where the name comes from.',
       'Use Hard sphere and colour by Planes: the front face shows a step that ends at the line.',
+      'Colour by Strain: the shear is the same all around the line and fades with distance. Nothing is squeezed or stretched.',
       'Press Walk the circuit: one trip around the line ends a Burgers vector along it from the start.',
       'Play glide: the line moves sideways, at right angles to the slip it causes.',
     ],
@@ -350,12 +358,14 @@ function describe(state: DislocationState): HTMLElement[] {
 
   const fraction = slippedFraction(config);
   const [min, max] = positionRange(crystal);
+  // (the two halves have their own colours only in the plain colouring)
+  const [top, bottom] = state.coloring === 'plain' ? [' (blue)', ' (grey)'] : ['', ''];
   const glide =
     state.position <= min + 0.25
       ? 'The line hasn’t entered the crystal: nothing has slipped yet.'
       : state.position >= max - 0.25
-        ? 'The line has crossed the whole crystal. The top half (blue) has moved by one Burgers vector over the bottom half (grey), leaving a step on the surface.'
-        : `The line has crossed ${Math.round(fraction * 100)}% of the slip plane. Behind it (orange) the top half (blue) has moved by one Burgers vector over the bottom half (grey); ahead of it nothing has slipped.`;
+        ? `The line has crossed the whole crystal. The top half${top} has moved by one Burgers vector over the bottom half${bottom}, leaving a step on the surface.`
+        : `The line has crossed ${Math.round(fraction * 100)}% of the slip plane. Behind it (orange) the top half${top} has moved by one Burgers vector over the bottom half${bottom}; ahead of it nothing has slipped.`;
 
   const cards = [
     h(

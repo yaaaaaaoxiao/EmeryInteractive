@@ -39,7 +39,7 @@ Each crystal is described by data, not hand-placed coordinates: atom radius (in 
 | `kind` | `edge` \| `screw` \| `mixed` | `?type=screw`. Mixed is 45° in SC, 60° in FCC and 71° in BCC. |
 | `position` | where the line is along the glide direction | The slider, Play, and ← / →. Starts in the middle of the block; changing structure or kind puts it back there. |
 | `style` | `sticks` \| `hard` | Ball and stick (with bonds), or touching spheres. |
-| `coloring` | `plain` \| `planes` \| `strain` | Plain: the half above the slip plane in blue, the half below in grey. Planes: the lattice planes the Burgers vector steps between. Strain: squeezed blue, stretched red. |
+| `coloring` | `plain` \| `planes` \| `strain` | Plain: the half above the slip plane in blue, the half below in grey. Planes: the lattice planes the Burgers vector steps between. Strain: squeezed blue, stretched red; a pure screw changes no volume, so it is coloured by its shear instead (orange, fading with distance from the line). |
 | `show` | line, Burgers vector, slip plane, extra half-plane, spiral ramp, Burgers circuit | The half-plane needs an edge part and the ramp a screw part. While the ramp is shown, atoms away from the line are faded so it can be seen. |
 | `circuitSteps` | number of steps taken, or all | "Walk the circuit" and "One step". Not in the link: a link shows the finished circuit. |
 

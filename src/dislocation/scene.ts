@@ -12,6 +12,7 @@ import { LOOKS, makeMaterial } from '../scene/look';
 import {
   atomDilatation,
   atomPosition,
+  atomShear,
   bonds,
   burgersCircuit,
   type Config,
@@ -47,11 +48,15 @@ export const COLORS = {
   compression: 0x2563eb,
   tension: 0xdc2626,
   unstrained: 0xdfe3e8,
+  // a pure screw dislocation, which shears the crystal without changing its volume
+  shear: 0xea580c,
 };
 
 // the volume change at which the strain colours are fully blue or red (it is about 0.16 right beside the line of
 // a simple-cubic edge dislocation, and falls off as 1/distance)
 export const STRAIN_FULL_SCALE = 0.04;
+// the shear strain at which the shear colour is full (reached about one atom spacing from a screw dislocation)
+export const SHEAR_FULL_SCALE = 0.12;
 
 // an atom's radius as a fraction of the nearest-neighbour distance: touching, or small enough to see between
 const ATOM_RADIUS = { hard: 0.5, sticks: 0.2 };
@@ -73,6 +78,11 @@ export const blockSize = (state: DislocationState): Vec3 => crystalOf(configOf(s
 export function atomColor(state: DislocationState, config: Config, atom: number): number | THREE.Color {
   const crystal = crystalOf(config);
   if (state.coloring === 'strain') {
+    // a pure screw dislocation squeezes and stretches nothing: its strain is shear, shown in a colour of its own
+    if (crystal.burgers[0] === 0) {
+      const t = Math.min(atomShear(config, atom) / SHEAR_FULL_SCALE, 1);
+      return new THREE.Color(COLORS.unstrained).lerp(new THREE.Color(COLORS.shear), t);
+    }
     const t = THREE.MathUtils.clamp(atomDilatation(config, atom) / STRAIN_FULL_SCALE, -1, 1);
     return new THREE.Color(COLORS.unstrained).lerp(new THREE.Color(t < 0 ? COLORS.compression : COLORS.tension), Math.abs(t));
   }
@@ -102,11 +112,13 @@ export function buildDislocationScene(state: DislocationState): Built {
 
   //////// atoms
   // While the spiral ramp is shown, only the atoms on it (and the extra half-plane, and the Burgers circuit) are
-  // drawn solid: the ramp is steep only near the line, and the rest of the block would hide it.
+  // drawn solid: the ramp is steep only near the line, and the rest of the block would hide it. Not when atoms are
+  // coloured by strain, though: then the colours of the whole block are the point.
   const inside = lineInBlock(config);
   const rampShown = inside && state.show.ramp && screw !== 0;
+  const fadeRest = rampShown && state.coloring !== 'strain';
   const isSolid = (atom: number) =>
-    !rampShown || onRamp(config, atom) || (state.show.halfPlane && inHalfPlane(config, atom)) || onCircuit.has(atom);
+    !fadeRest || onRamp(config, atom) || (state.show.halfPlane && inHalfPlane(config, atom)) || onCircuit.has(atom);
   const atoms = crystal.atoms.map((_, n) => n);
   const solid = atoms.filter(isSolid);
   const faded = atoms.filter((atom) => !isSolid(atom));

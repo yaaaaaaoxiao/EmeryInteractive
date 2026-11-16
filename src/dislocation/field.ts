@@ -47,6 +47,13 @@ export function dilatation(X: number, Z: number, edge: number, nu = NU): number 
   return (-edge * (1 - 2 * nu) * Z) / (2 * Math.PI * (1 - nu) * (X * X + Z * Z));
 }
 
+// How much the screw part shears the crystal at (X, Z): the size of the shear strain, b / 2πr. It is the same
+// all the way around the line and falls off with the distance r from it. (The edge part shears the crystal too;
+// this is the screw part's own shear, the only strain a pure screw dislocation has.)
+export function screwShear(X: number, Z: number, screw: number): number {
+  return Math.abs(screw) / (2 * Math.PI * Math.hypot(X, Z));
+}
+
 // where a point of the perfect crystal is once the dislocation is there
 export function place(config: Config, point: Vec3): Vec3 {
   const crystal = crystalOf(config);
@@ -60,6 +67,12 @@ export function atomDilatation(config: Config, atom: number): number {
   const crystal = crystalOf(config);
   const p = crystal.atoms[atom];
   return dilatation(p[0] - config.position, p[2] - crystal.slipHeight, crystal.burgers[0]);
+}
+
+export function atomShear(config: Config, atom: number): number {
+  const crystal = crystalOf(config);
+  const p = crystal.atoms[atom];
+  return screwShear(p[0] - config.position, p[2] - crystal.slipHeight, crystal.burgers[1]);
 }
 
 //////////////// where the line is

@@ -69,13 +69,46 @@ describe('dislocation scene', () => {
     }
   });
 
-  it('colours an edge dislocation blue on the squeezed side and red on the stretched side; a screw not at all', () => {
-    const edge = new Set(atomColors(state({ coloring: 'strain' })));
-    expect(edge.size).toBeGreaterThan(10);
-    const screw = new Set(
-      atomColors(state({ kind: 'screw', coloring: 'strain', show: { ...defaultState().show, ramp: false } })),
-    );
-    expect([...screw]).toEqual([hex(COLORS.unstrained)]);
+  it('colours an edge dislocation by strain: blue on the squeezed side, red on the stretched side', () => {
+    const colors = atomColors(state({ coloring: 'strain' })).map((c) => new THREE.Color(`#${c}`));
+    expect(new Set(colors.map((c) => c.getHexString())).size).toBeGreaterThan(10);
+    // (blue has more blue than red in it, red more red than blue)
+    expect(colors.some((c) => c.b > c.r + 0.2)).toBe(true);
+    expect(colors.some((c) => c.r > c.b + 0.2)).toBe(true);
+  });
+
+  it('colours a screw dislocation by its shear, strongest at the line and the same all around it', () => {
+    for (const structure of STRUCTURE_IDS) {
+      const s = state({ structure, kind: 'screw', coloring: 'strain' });
+      const config = configOf(s);
+      const crystal = crystalOf(config);
+      const colors = atomColors(s);
+      // every atom is drawn solid, so the colours of the whole block show (not just the atoms on the ramp)
+      expect(colors).toHaveLength(crystal.atoms.length);
+      expect(names(s)).not.toContain('atoms-faded');
+      // how far each atom's colour is from unstrained toward the shear colour
+      const amount = colors.map((c) => new THREE.Color(`#${c}`).r - new THREE.Color(COLORS.unstrained).r);
+      const distanceFromLine = crystal.atoms.map((p) => Math.hypot(p[0] - config.position, p[2] - crystal.slipHeight));
+      const nearest = distanceFromLine.indexOf(Math.min(...distanceFromLine));
+      const farthest = distanceFromLine.indexOf(Math.max(...distanceFromLine));
+      expect(colors[nearest]).toBe(hex(COLORS.shear));
+      expect(amount[nearest]).toBeGreaterThan(amount[farthest]);
+      // no blue or red: nothing is squeezed or stretched
+      expect(colors.every((c) => new THREE.Color(`#${c}`).b <= new THREE.Color(COLORS.unstrained).b + 1e-6)).toBe(true);
+      // atoms the same distance from the line have the same colour, wherever they are around it
+      const byDistance = new Map<string, Set<string>>();
+      distanceFromLine.forEach((d, n) => {
+        const key = d.toFixed(4);
+        byDistance.set(key, (byDistance.get(key) ?? new Set()).add(colors[n]));
+      });
+      expect([...byDistance.values()].every((set) => set.size === 1)).toBe(true);
+    }
+  });
+
+  it('still colours a mixed dislocation by the squeezing and stretching of its edge part', () => {
+    const colors = atomColors(state({ kind: 'mixed', coloring: 'strain' })).map((c) => new THREE.Color(`#${c}`));
+    expect(colors.some((c) => c.b > c.r + 0.2)).toBe(true);
+    expect(colors.some((c) => c.r > c.b + 0.2)).toBe(true);
   });
 
   it('draws the spiral ramp, and colours its atoms, only for a dislocation with a screw part', () => {

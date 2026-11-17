@@ -8,7 +8,7 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { Vec3 } from '../crystal/structures';
 import type { Built } from '../scene/build';
-import { LOOKS, makeMaterial } from '../scene/look';
+import { LOOKS, type Look, makeMaterial } from '../scene/look';
 import {
   atomDilatation,
   atomPosition,
@@ -36,13 +36,14 @@ export const COLORS = {
   halfPlane: 0xff6347,
   // the spiral ramp; where the layers make two or three ramps wound inside each other, one colour each
   ramps: [0x0d9488, 0x7c3aed, 0x65a30d],
-  line: 0xb5179e,
-  burgers: 0x2563eb,
-  circuit: 0x1d2026,
+  // the annotations: strong, deep colours, so they stand apart from the soft colours of the atoms
+  line: 0xa21caf,
+  burgers: 0x1d4ed8,
+  circuit: 0x334155,
   walker: 0xf97316,
   bond: 0x96a2b0,
   slipped: 0xf59e0b,
-  unslipped: 0x64748b,
+  unslipped: 0x94a3b8,
   // lattice planes, cycling (so a plane can be told from the ones next to it)
   planes: [0x4e79a7, 0xf28e2b, 0x59a14f, 0xedc948],
   compression: 0x2563eb,
@@ -69,8 +70,18 @@ const BOND_OPACITY = 0.65;
 const FADED_OPACITY = { hard: 0.05, sticks: 0.14 };
 // how far the slip plane and the line reach beyond the atoms, so they show outside a hard-sphere block
 const MARGIN = 1.2;
-// drawn after, and over, the atoms: the line, the vectors and the circuit are annotations, like the labels
+// The line, the vectors and the circuit are annotations, like the labels: drawn after the crystal and always in
+// front of it (see `overlay`), but shaded like the atoms, each with a thin white outline that keeps it apart from
+// whatever is behind it.
 const ON_TOP = 10;
+const OUTLINE = 0.028;
+const OUTLINE_COLOR = 0xffffff;
+// how thick the annotations are, in units of a
+const LINE_RADIUS = 0.07;
+const BURGERS_RADIUS = 0.085;
+const CIRCUIT_RADIUS = 0.05;
+const KNOB_RADIUS = 0.14;
+const WALKER_RADIUS = 0.18;
 
 const v3 = (p: Vec3) => new THREE.Vector3(p[0], p[1], p[2]);
 
@@ -204,52 +215,62 @@ export function buildDislocationScene(state: DislocationState): Built {
     const left = -MARGIN;
     const right = crystal.size[0] + MARGIN;
     const split = THREE.MathUtils.clamp(state.position, left, right);
-    if (split > left) group.add(sheet(left, split, front, back, z0, COLORS.slipped, 0.32, 'slipped'));
-    if (split < right) group.add(sheet(split, right, front, back, z0, COLORS.unslipped, 0.16, 'unslipped'));
+    if (split > left) group.add(sheet(left, split, front, back, z0, COLORS.slipped, 0.3, 'slipped'));
+    if (split < right) group.add(sheet(split, right, front, back, z0, COLORS.unslipped, 0.14, 'unslipped'));
   }
 
   //////// the line and its Burgers vector (only while the line is in the block)
+  const paint = (color: number) => overlayMaterial(look, color);
   const tip = new THREE.Vector3(state.position, front, z0);
+  const annotations: THREE.Object3D[] = [];
   if (inside && state.show.line) {
     // an arrow along the line's sense (−y, out of the front face)
-    const line = arrow(new THREE.Vector3(state.position, back, z0), tip, COLORS.line, 0.07);
+    const line = arrow(new THREE.Vector3(state.position, back, z0), tip, paint(COLORS.line), LINE_RADIUS);
     line.name = 'line';
-    group.add(line, label('dislocation line', COLORS.line, new THREE.Vector3(state.position, back, z0), [-0.15, 2.2]));
+    annotations.push(line, label('dislocation line', COLORS.line, new THREE.Vector3(state.position, back, z0), [-0.15, 2.2]));
   }
   if (inside && state.show.burgers) {
     const end = tip.clone().add(new THREE.Vector3(edge, screw, 0));
-    const b = arrow(tip, end, COLORS.burgers, 0.07);
+    const b = arrow(tip, end, paint(COLORS.burgers), BURGERS_RADIUS);
     b.name = 'burgers';
-    group.add(b, label('b', COLORS.burgers, end, [-0.4, 0.5], true));
+    annotations.push(b, label('b', COLORS.burgers, end, [-0.4, 0.5], true));
   }
 
   //////// the Burgers circuit: the steps taken so far, and once it is complete, the gap from start to finish
   if (circuit) {
     const total = circuit.points.length - 1;
     const taken = Math.min(state.circuitSteps ?? total, total);
-    const points = circuit.points.slice(0, taken + 1).map((p) => place(config, p));
-    const start = v3(points[0]);
-    const here = v3(points[taken]);
-    group.add(dot(start, COLORS.circuit), label('start', COLORS.circuit, start, [1.15, 1.2]));
+    const points = circuit.points.slice(0, taken + 1).map((p) => v3(place(config, p)));
+    const start = points[0];
+    const here = points[taken];
+    const ink = paint(COLORS.circuit);
+    annotations.push(...knob(start, ink, KNOB_RADIUS), label('start', COLORS.circuit, start, [1.15, 1.2]));
     if (taken > 0) {
-      const ends: number[] = [];
-      for (let n = 1; n < points.length; n++) ends.push(...points[n - 1], ...points[n]);
-      const path = segments(ends, COLORS.circuit, 3.5, { onTop: true });
+      const path = tubes(points, ink, CIRCUIT_RADIUS);
       path.name = 'circuit';
-      group.add(path);
+      // an arrowhead in the middle of each side, once the walk has passed it: which way round the circuit goes
+      const heads = new THREE.Group();
+      let first = 0;
+      for (const leg of circuit.legs) {
+        const middle = first + Math.floor(leg.steps / 2);
+        if (middle < taken) heads.add(arrowhead(points[middle], points[middle + 1], ink, CIRCUIT_RADIUS));
+        first += leg.steps;
+      }
+      annotations.push(path, heads);
     }
     if (taken < total) {
       // where the walk has got to
-      const walker = dot(here, COLORS.walker, 0.17);
+      const [walker, outline] = knob(here, paint(COLORS.walker), WALKER_RADIUS);
       walker.name = 'circuit-walker';
-      group.add(walker);
+      annotations.push(walker, outline);
     } else {
-      const gap = arrow(start, here, COLORS.burgers, 0.06);
+      const gap = arrow(start, here, paint(COLORS.burgers), LINE_RADIUS);
       gap.name = 'circuit-gap';
       // (below the point, so it never covers "start" when the gap points at the viewer)
-      group.add(gap, dot(here, COLORS.circuit), label('finish', COLORS.circuit, here, [-0.15, -0.2]));
+      annotations.push(gap, ...knob(here, ink, KNOB_RADIUS), label('finish', COLORS.circuit, here, [-0.2, -0.5]));
     }
   }
+  if (annotations.length) group.add(overlay(), ...annotations);
 
   return { group, pickables: [] };
 }
@@ -262,20 +283,17 @@ function segments(
   ends: number[],
   color: number,
   width: number,
-  { onTop = false, inWorldUnits = false, opacity = 1 }: { onTop?: boolean; inWorldUnits?: boolean; opacity?: number } = {},
+  { inWorldUnits = false, opacity = 1 }: { inWorldUnits?: boolean; opacity?: number } = {},
 ): LineSegments2 {
   const material = new LineMaterial({
     color,
     linewidth: width,
     worldUnits: inWorldUnits,
-    depthTest: !onTop,
     transparent: opacity < 1,
     opacity,
     depthWrite: opacity === 1,
   });
-  const lines = new LineSegments2(new LineSegmentsGeometry().setPositions(ends), material);
-  if (onTop) lines.renderOrder = ON_TOP;
-  return lines;
+  return new LineSegments2(new LineSegmentsGeometry().setPositions(ends), material);
 }
 
 // a grid of points as a smooth surface
@@ -303,38 +321,127 @@ function outerEdge(grid: Grid): number[] {
   return ends;
 }
 
-// a flat, see-through rectangle at height z
+// a flat, see-through rectangle at height z, with its edge drawn (so it reads as a sheet, not as a tint)
 function sheet(x1: number, x2: number, y1: number, y2: number, z: number, color: number, opacity: number, name: string) {
-  const mesh = new THREE.Mesh(
+  const fill = new THREE.Mesh(
     new THREE.PlaneGeometry(x2 - x1, y2 - y1),
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }),
   );
-  mesh.position.set((x1 + x2) / 2, (y1 + y2) / 2, z);
-  mesh.name = name;
+  fill.position.set((x1 + x2) / 2, (y1 + y2) / 2, z);
+  const corners = [x1, y1, z, x2, y1, z, x2, y1, z, x2, y2, z, x2, y2, z, x1, y2, z, x1, y2, z, x1, y1, z];
+  const group = new THREE.Group().add(fill, segments(corners, color, 1.5, { opacity: Math.min(1, opacity * 2.6) }));
+  group.name = name;
+  return group;
+}
+
+//////////////// annotations
+
+// Everything added to the scene after this is drawn in front of the crystal, whatever is in the way, yet the
+// annotations still hide one another as solid things do: this clears the depth the crystal left behind, just
+// before the first of them is drawn. (They are all marked see-through only so that they are drawn last, after the
+// parts of the crystal that really are.)
+function overlay(): THREE.Mesh {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Array(9).fill(0), 3));
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ transparent: true, colorWrite: false, depthWrite: false }));
+  mesh.frustumCulled = false;
+  mesh.renderOrder = ON_TOP - 1;
+  mesh.onBeforeRender = (renderer) => renderer.clearDepth();
   return mesh;
 }
 
-// a solid arrow drawn over the atoms, in one flat colour (so it reads as an annotation, not as part of the crystal)
-function arrow(from: THREE.Vector3, to: THREE.Vector3, color: number, radius: number): THREE.Group {
+// shaded like the atoms
+function overlayMaterial(look: Look, color: number): THREE.Material {
+  return makeMaterial(look, { color, transparent: true });
+}
+
+// the white outline of an annotation: the same shape a little larger, of which only the inside of the far side is
+// drawn, so it shows as a rim around the shape itself
+const outlineMaterial = () => new THREE.MeshBasicMaterial({ color: OUTLINE_COLOR, side: THREE.BackSide, transparent: true });
+
+function onTop<T extends THREE.Object3D>(object: T): T {
+  object.renderOrder = ON_TOP;
+  return object;
+}
+
+// A cone with its base at height `base` on the y axis, pointing up, and its outline: the same cone with its
+// surface moved out by OUTLINE all round.
+function cone(base: number, height: number, wide: number, material: THREE.Material): THREE.Mesh[] {
+  const sharpness = Math.hypot(height, wide) / wide;
+  return [0, OUTLINE].map((grow) => {
+    const from = base - grow;
+    const to = base + height + grow * sharpness;
+    const mesh = new THREE.Mesh(
+      new THREE.ConeGeometry(((to - from) * wide) / height, to - from, 32),
+      grow ? outlineMaterial() : material,
+    );
+    mesh.position.y = (from + to) / 2;
+    return onTop(mesh);
+  });
+}
+
+// a round arrow from one point to another, with its outline
+function arrow(from: THREE.Vector3, to: THREE.Vector3, material: THREE.Material, radius: number): THREE.Group {
   const length = from.distanceTo(to);
-  const head = Math.min(radius * 5, length * 0.45);
-  const material = new THREE.MeshBasicMaterial({ color, depthTest: false });
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length - head, 20), material);
-  shaft.position.y = (length - head) / 2;
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(radius * 2.4, head, 24), material);
-  cone.position.y = length - head / 2;
-  shaft.renderOrder = cone.renderOrder = ON_TOP;
-  const group = new THREE.Group().add(shaft, cone);
+  const head = Math.min(radius * 5.5, length * 0.45);
+  const group = new THREE.Group().add(...cone(length - head, head, radius * 2.5, material));
+  for (const grow of [0, OUTLINE]) {
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius + grow, radius + grow, length - head + grow, 24),
+      grow ? outlineMaterial() : material,
+    );
+    shaft.position.y = (length - head - grow) / 2;
+    group.add(onTop(shaft));
+  }
   group.position.copy(from);
   group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
   return group;
 }
 
-function dot(at: THREE.Vector3, color: number, radius = 0.11): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 16, 10), new THREE.MeshBasicMaterial({ color, depthTest: false }));
-  mesh.position.copy(at);
-  mesh.renderOrder = ON_TOP;
-  return mesh;
+// the head of an arrow alone, in the middle of the way from one point to the next
+function arrowhead(from: THREE.Vector3, to: THREE.Vector3, material: THREE.Material, radius: number): THREE.Group {
+  const length = radius * 6.5;
+  const group = new THREE.Group().add(...cone(-length / 2, length, radius * 2.9, material));
+  group.position.copy(from).lerp(to, 0.5);
+  group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
+  return group;
+}
+
+// a ball at a point, with its outline
+function knob(at: THREE.Vector3, material: THREE.Material, radius: number): [THREE.Mesh, THREE.Mesh] {
+  const ball = onTop(new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16), material));
+  const outline = onTop(new THREE.Mesh(new THREE.SphereGeometry(radius + OUTLINE, 24, 16), outlineMaterial()));
+  ball.position.copy(at);
+  outline.position.copy(at);
+  return [ball, outline];
+}
+
+// a path through the points as round rods with round joints, and its outline; the rods come first
+function tubes(points: THREE.Vector3[], material: THREE.Material, radius: number): THREE.Group {
+  const steps = points.length - 1;
+  const group = new THREE.Group();
+  const up = new THREE.Vector3(0, 1, 0);
+  const matrix = new THREE.Matrix4();
+  const turn = new THREE.Quaternion();
+  for (const grow of [0, OUTLINE]) {
+    const paint = grow ? outlineMaterial() : material;
+    const rods = onTop(
+      new THREE.InstancedMesh(new THREE.CylinderGeometry(radius + grow, radius + grow, 1, 16, 1, true), paint, steps),
+    );
+    const joints = onTop(new THREE.InstancedMesh(new THREE.SphereGeometry(radius + grow, 16, 10), paint, points.length));
+    points.forEach((point, n) => {
+      joints.setMatrixAt(n, matrix.makeTranslation(point));
+      if (n === steps) return;
+      const along = points[n + 1].clone().sub(point);
+      const length = along.length();
+      turn.setFromUnitVectors(up, along.normalize());
+      rods.setMatrixAt(n, matrix.compose(point.clone().lerp(points[n + 1], 0.5), turn, new THREE.Vector3(1, length, 1)));
+    });
+    // (its parts are spread over the block, so it is drawn wherever the camera looks)
+    rods.frustumCulled = joints.frustumCulled = false;
+    group.add(rods, joints);
+  }
+  return group;
 }
 
 // a small tag in the 3D view; `anchor` is where the point sits in the tag (0 0 = its top-left corner)
@@ -342,7 +449,7 @@ function label(text: string, color: number, at: THREE.Vector3, anchor: [number, 
   const div = document.createElement('div');
   div.className = math ? 'scene-label note math' : 'scene-label note';
   div.textContent = text;
-  div.style.borderColor = div.style.color = `#${color.toString(16).padStart(6, '0')}`;
+  div.style.setProperty('--tag', `#${color.toString(16).padStart(6, '0')}`);
   const object = new CSS2DObject(div);
   object.position.copy(at);
   object.center.set(...anchor);

@@ -147,8 +147,9 @@ describe('dislocation scene', () => {
   it('draws the Burgers circuit one step at a time while it is walked, and its gap only at the end', () => {
     const show = { ...defaultState().show, circuit: true };
     const segmentsOf = (s: DislocationState) => {
-      const path = buildDislocationScene(s).group.getObjectByName('circuit') as THREE.Mesh | undefined;
-      return path ? path.geometry.getAttribute('instanceStart').count : 0;
+      // (the path is a group: one rod per step, then the joints and the outline)
+      const path = buildDislocationScene(s).group.getObjectByName('circuit');
+      return path ? (path.children[0] as THREE.InstancedMesh).count : 0;
     };
     // before the first step: only the start, with the walker on it
     const begun = state({ show, circuitSteps: 0 });

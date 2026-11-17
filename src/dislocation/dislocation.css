@@ -24,12 +24,17 @@
 }
 
 /* tags on the line, the Burgers vector and the circuit's ends; their colour is set to match what they name */
+/* a tag on an annotation, in the annotation's colour (set as --tag by scene.ts) */
 .scene-label.note {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid;
-  border-radius: 6px;
-  padding: 1px 6px;
+  background: var(--tag);
+  color: #fff;
+  border: 1.5px solid #fff;
+  border-radius: 999px;
+  padding: 1px 8px 2px;
   font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 1px 4px rgba(20, 24, 31, 0.22);
 }
 /* b, as in the formulas: a bold italic vector */
 .scene-label.note.math,

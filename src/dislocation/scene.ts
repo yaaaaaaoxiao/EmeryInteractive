@@ -61,8 +61,10 @@ export const SHEAR_FULL_SCALE = 0.12;
 // an atom's radius as a fraction of the nearest-neighbour distance: touching, or small enough to see between
 const ATOM_RADIUS = { hard: 0.5, sticks: 0.2 };
 // a bond's thickness as a fraction of the nearest-neighbour distance (not in pixels, so bonds further away are
-// drawn thinner, as the atoms are)
-const BOND_WIDTH = 0.045;
+// drawn thinner, as the atoms are). Bonds are hairlines, and a little see-through, so the many that cross behind
+// one another in a block this deep stay a light mesh instead of a dark tangle.
+const BOND_WIDTH = 0.02;
+const BOND_OPACITY = 0.65;
 // how see-through the atoms away from the spiral ramp are while it is shown (big hard spheres need to be fainter)
 const FADED_OPACITY = { hard: 0.05, sticks: 0.14 };
 // how far the slip plane and the line reach beyond the atoms, so they show outside a hard-sphere block
@@ -151,11 +153,14 @@ export function buildDislocationScene(state: DislocationState): Built {
     for (const [a, b] of bonds(config)) {
       ends[isSolid(a) && isSolid(b) ? 0 : 1].push(...atomPosition(config, a), ...atomPosition(config, b));
     }
-    const lines = segments(ends[0], COLORS.bond, width, { inWorldUnits: true });
+    const lines = segments(ends[0], COLORS.bond, width, { inWorldUnits: true, opacity: BOND_OPACITY });
     lines.name = 'bonds';
     group.add(lines);
     if (ends[1].length) {
-      const rest = segments(ends[1], COLORS.bond, width, { inWorldUnits: true, opacity: FADED_OPACITY.sticks });
+      const rest = segments(ends[1], COLORS.bond, width, {
+        inWorldUnits: true,
+        opacity: FADED_OPACITY.sticks * BOND_OPACITY,
+      });
       rest.name = 'bonds-faded';
       group.add(rest);
     }

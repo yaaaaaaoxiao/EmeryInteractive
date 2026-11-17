@@ -333,8 +333,17 @@ export class Viewer {
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(w, h);
     this.labelRenderer.setSize(w, h);
+    // Keep the model as large in a view of the new shape as it was in the old one. Without this, a camera fitted
+    // while the view was still narrow (as the page is laid out, say) stays far away once the view widens: the
+    // model is tiny, or beyond the camera's reach and not drawn at all.
+    const fitted = this.distance;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    const scale = this.distance / fitted;
+    if (Number.isFinite(scale) && scale > 0 && scale !== 1) {
+      this.camera.position.sub(this.controls.target).multiplyScalar(scale).add(this.controls.target);
+      this.controls.update();
+    }
     this.requestRender();
   }
 
